@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FocusFlow — AI Productivity Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- ══ SIDEBAR ═══════════════════════════════════════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-icon">◈</span>
+    <span class="brand-name">FocusFlow</span>
+  </div>
+
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-view="dashboard" onclick="showView('dashboard')">
+      <span class="nav-icon">⬡</span> Dashboard
+    </button>
+    <button class="nav-item" data-view="tasks" onclick="showView('tasks')">
+      <span class="nav-icon">◻</span> My Tasks
+    </button>
+    <button class="nav-item" data-view="focus" onclick="showView('focus')">
+      <span class="nav-icon">◎</span> Focus Mode
+    </button>
+    <button class="nav-item" data-view="insights" onclick="showView('insights')">
+      <span class="nav-icon">◈</span> AI Insights
+    </button>
+  </nav>
+
+  <div class="sidebar-bottom">
+    <div class="streak-badge" id="streakBadge">
+      <span class="streak-fire">🔥</span>
+      <span id="streakCount">0</span> day streak
+    </div>
+    <p class="sidebar-tagline">Built with intelligence.<br>Made for focus.</p>
+  </div>
+</aside>
+
+<!-- ══ MAIN ═══════════════════════════════════════════════════════════════════ -->
+<main class="main-content">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <button class="hamburger" onclick="toggleSidebar()">☰</button>
+    <div class="topbar-left">
+      <h1 class="page-title" id="pageTitle">Dashboard</h1>
+      <span class="page-date" id="pageDate"></span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn-add" onclick="openModal()">+ New Task</button>
+    </div>
+  </header>
+
+  <!-- ── DASHBOARD VIEW ─────────────────────────────────────────────────── -->
+  <section id="view-dashboard" class="view active">
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card" style="--accent:#f97316">
+        <div class="stat-label">Total Tasks</div>
+        <div class="stat-value" id="statTotal">0</div>
+        <div class="stat-sub">in your workspace</div>
+      </div>
+      <div class="stat-card" style="--accent:#22c55e">
+        <div class="stat-label">Completed</div>
+        <div class="stat-value" id="statDone">0</div>
+        <div class="stat-sub">tasks finished</div>
+      </div>
+      <div class="stat-card" style="--accent:#3b82f6">
+        <div class="stat-label">In Progress</div>
+        <div class="stat-value" id="statProgress">0</div>
+        <div class="stat-sub">currently active</div>
+      </div>
+      <div class="stat-card" style="--accent:#f43f5e">
+        <div class="stat-label">Overdue</div>
+        <div class="stat-value" id="statOverdue">0</div>
+        <div class="stat-sub">need attention</div>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Recent Tasks</h2>
+          <button class="text-btn" onclick="showView('tasks')">See all →</button>
+        </div>
+        <div id="recentTasks" class="task-mini-list"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>AI Insight</h2>
+          <span class="ai-tag">AI Generated</span>
+        </div>
+        <div class="insight-box" id="insightBox">
+          <div class="insight-loading">Analysing your tasks…</div>
+        </div>
+        <div class="motivational" id="motivationalText"></div>
+      </div>
+    </div>
+
+    <div class="panel progress-panel">
+      <div class="panel-header">
+        <h2>Completion Rate</h2>
+        <span id="completionPct">0%</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="progressBarFill" style="width:0%"></div>
+      </div>
+      <div class="category-breakdown" id="categoryBreakdown"></div>
+    </div>
+  </section>
+
+  <!-- ── TASKS VIEW ─────────────────────────────────────────────────────── -->
+  <section id="view-tasks" class="view">
+    <div class="filter-bar">
+      <div class="filter-pills">
+        <button class="pill active" onclick="filterTasks('all', this)">All</button>
+        <button class="pill" onclick="filterTasks('pending', this)">Pending</button>
+        <button class="pill" onclick="filterTasks('in_progress', this)">In Progress</button>
+        <button class="pill" onclick="filterTasks('done', this)">Done</button>
+      </div>
+      <div class="search-wrap">
+        <input type="text" id="searchInput" placeholder="Search tasks…" oninput="renderTasks()">
+      </div>
+    </div>
+    <div id="taskGrid" class="task-grid"></div>
+    <div id="emptyState" class="empty-state hidden">
+      <div class="empty-icon">◻</div>
+      <p>No tasks here yet. Hit <strong>+ New Task</strong> to start.</p>
+    </div>
+  </section>
+
+  <!-- ── FOCUS MODE VIEW ────────────────────────────────────────────────── -->
+  <section id="view-focus" class="view">
+    <div class="focus-container">
+      <div class="focus-left">
+        <h2 class="focus-heading">Pomodoro Focus Timer</h2>
+        <p class="focus-sub">Select a task, start the timer, and enter deep work mode.</p>
+
+        <div class="timer-ring-wrap">
+          <svg class="timer-ring" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="88" fill="none" stroke="#1e293b" stroke-width="10"/>
+            <circle id="timerArc" cx="100" cy="100" r="88" fill="none" stroke="#f97316"
+                    stroke-width="10" stroke-linecap="round"
+                    stroke-dasharray="553" stroke-dashoffset="0"
+                    transform="rotate(-90 100 100)"/>
+          </svg>
+          <div class="timer-inner">
+            <div class="timer-display" id="timerDisplay">25:00</div>
+            <div class="timer-label" id="timerLabel">Ready</div>
+          </div>
+        </div>
+
+        <div class="timer-controls">
+          <button class="btn-timer" id="btnStart" onclick="startTimer()">▶ Start</button>
+          <button class="btn-timer secondary" onclick="resetTimer()">↺ Reset</button>
+        </div>
+
+        <div class="timer-options">
+          <button class="option-chip active" onclick="setMode(25,'Focus',this)">25 min Focus</button>
+          <button class="option-chip" onclick="setMode(5,'Short Break',this)">5 min Break</button>
+          <button class="option-chip" onclick="setMode(15,'Long Break',this)">15 min Break</button>
+        </div>
+      </div>
+
+      <div class="focus-right">
+        <h3>Choose a task to focus on</h3>
+        <div id="focusTaskList" class="focus-task-list"></div>
+        <div class="focus-stats">
+          <div class="focus-stat">
+            <span class="fs-num" id="focusTotal">0</span>
+            <span class="fs-label">Total Focus Mins</span>
+          </div>
+          <div class="focus-stat">
+            <span class="fs-num" id="focusSessions">0</span>
+            <span class="fs-label">Sessions Today</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── INSIGHTS VIEW ──────────────────────────────────────────────────── -->
+  <section id="view-insights" class="view">
+    <div class="insights-hero">
+      <div class="insights-hero-text">
+        <h2>AI Productivity Analysis</h2>
+        <p>Your task data is analysed in real time to surface patterns, blockers, and opportunities.</p>
+      </div>
+      <button class="btn-refresh" onclick="loadReport()">↻ Refresh</button>
+    </div>
+
+    <div class="insights-grid">
+      <div class="insight-card big" id="insightMain">
+        <div class="ic-label">Primary Insight</div>
+        <div class="ic-text" id="insightMainText">Loading analysis…</div>
+      </div>
+      <div class="insight-card" id="insightRate">
+        <div class="ic-label">Completion Rate</div>
+        <div class="ic-big" id="insightRateVal">—</div>
+      </div>
+      <div class="insight-card" id="insightStreak">
+        <div class="ic-label">Current Streak</div>
+        <div class="ic-big" id="insightStreakVal">—</div>
+      </div>
+      <div class="insight-card" id="insightFocus">
+        <div class="ic-label">Total Focus Time</div>
+        <div class="ic-big" id="insightFocusVal">—</div>
+      </div>
+      <div class="insight-card" id="insightTop">
+        <div class="ic-label">Top Category</div>
+        <div class="ic-big" id="insightTopVal">—</div>
+      </div>
+    </div>
+
+    <div class="panel mt-2">
+      <div class="panel-header"><h2>Priority Distribution</h2></div>
+      <div class="priority-bars" id="priorityBars"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ══ ADD TASK MODAL ════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>New Task</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Task Title *</label>
+        <input type="text" id="taskTitle" placeholder="e.g. Finish final year project report" oninput="liveAnalyze()">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="taskDesc" rows="3" placeholder="Add details…" oninput="liveAnalyze()"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Due Date</label>
+          <input type="date" id="taskDue">
+        </div>
+        <div class="form-group">
+          <label>Priority Override</label>
+          <select id="taskPriority">
+            <option value="">Auto (AI decides)</option>
+            <option value="critical">🔴 Critical</option>
+            <option value="high">🟠 High</option>
+            <option value="medium">🟡 Medium</option>
+            <option value="low">🟢 Low</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- AI Preview Panel -->
+      <div class="ai-preview" id="aiPreview">
+        <div class="ai-preview-header">
+          <span class="ai-tag">AI Analysis</span>
+          <span class="ai-preview-hint">Updates as you type</span>
+        </div>
+        <div class="ai-preview-body" id="aiPreviewBody">
+          <span class="muted">Start typing a task title to see AI suggestions…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="submitTask()">Add Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TASK DETAIL MODAL ═════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="detailOverlay" onclick="closeDetail(event)">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div>
+        <h2 id="detailTitle">Task Detail</h2>
+        <div class="detail-meta" id="detailMeta"></div>
+      </div>
+      <button class="modal-close" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn-danger" onclick="deleteCurrentTask()">Delete</button>
+      <div class="status-btns" id="statusBtns"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
