@@ -11,10 +11,27 @@ let analyzeTimeout = null;
 /* ─── Boot ──────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   updateDate();
+  loadUserInfo();
   loadTasks();
   loadReport();
   loadFocusTasks();
 });
+
+async function loadUserInfo() {
+  try {
+    const r = await fetch('/api/auth/me');
+    if (r.status === 401) { window.location.href = '/login'; return; }
+    const d = await r.json();
+    document.getElementById('userName').textContent  = d.name || 'User';
+    document.getElementById('userEmail').textContent = d.email || '';
+    document.getElementById('userAvatar').textContent = (d.name || 'U')[0].toUpperCase();
+  } catch(e) { console.error(e); }
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/login';
+}
 
 function updateDate() {
   const d = new Date();
@@ -45,6 +62,7 @@ async function api(path, method='GET', body=null) {
   const opts = { method, headers: {'Content-Type':'application/json'} };
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch('/api' + path, opts);
+  if (r.status === 401) { window.location.href = '/login'; return {}; }
   return r.json();
 }
 
