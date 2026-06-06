@@ -233,7 +233,14 @@ def logout():
 def me():
     if "user_id" not in session:
         return jsonify({"error":"Not logged in"}), 401
-    return jsonify({"name":session.get("user_name"),"email":session.get("user_email")})
+    users = load_users()
+    email = session.get("user_email")
+    user  = users.get(email, {})
+    return jsonify({
+        "name":    session.get("user_name"),
+        "email":   email,
+        "created": user.get("created", "")
+    })
 
 # ── TASK ROUTES ───────────────────────────────────────────────────────────────
 
@@ -332,6 +339,26 @@ def log_focus():
                               "task_id":body.get("task_id","")})
     save_data(current_uid(), data)
     return jsonify({"ok":True,"total":data["stats"]["total_focus_minutes"]})
+
+@app.route("/api/auth/change-password", methods=["POST"])
+def change_password():
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    body        = request.json
+    current_pw  = body.get("current_password", "")
+    new_pw      = body.get("new_password", "")
+    if not current_pw or not new_pw:
+        return jsonify({"error": "All fields are required."}), 400
+    if len(new_pw) < 6:
+        return jsonify({"error": "New password must be at least 6 characters."}), 400
+    users = load_users()
+    email = session.get("user_email")
+    user  = users.get(email)
+    if not user or not check_password_hash(user["password"], current_pw):
+        return jsonify({"error": "Current password is incorrect."}), 401
+    users[email]["password"] = generate_password_hash(new_pw)
+    save_users(users)
+    return jsonify({"ok": True})
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

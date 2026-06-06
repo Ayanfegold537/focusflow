@@ -23,12 +23,16 @@
     </button>
     <button class="nav-item" data-view="tasks" onclick="showView('tasks')">
       <span class="nav-icon">◻</span> My Tasks
+      <span class="nav-badge" id="navBadgeTasks"></span>
     </button>
     <button class="nav-item" data-view="focus" onclick="showView('focus')">
       <span class="nav-icon">◎</span> Focus Mode
     </button>
     <button class="nav-item" data-view="insights" onclick="showView('insights')">
       <span class="nav-icon">◈</span> AI Insights
+    </button>
+    <button class="nav-item" data-view="profile" onclick="showView('profile')">
+      <span class="nav-icon">◉</span> My Profile
     </button>
   </nav>
 
@@ -63,8 +67,23 @@
     </div>
   </header>
 
+  <!-- OVERDUE ALERT BANNER -->
+  <div class="overdue-banner hidden" id="overdueBanner">
+    <span class="overdue-icon">⚠</span>
+    <span id="overdueText"></span>
+    <button onclick="filterTasks('pending', document.querySelector('.pill')); showView('tasks'); hideOverdueBanner()" class="overdue-btn">View Tasks →</button>
+    <button onclick="hideOverdueBanner()" class="overdue-close">✕</button>
+  </div>
+
   <!-- ── DASHBOARD VIEW ─────────────────────────────────────────────────── -->
   <section id="view-dashboard" class="view active">
+    <div class="greeting-bar" id="greetingBar">
+      <div>
+        <div class="greeting-text" id="greetingText">Good morning!</div>
+        <div class="greeting-sub" id="greetingSub">Here is your productivity overview.</div>
+      </div>
+    </div>
+
     <div class="stats-row" id="statsRow">
       <div class="stat-card" style="--accent:#f97316">
         <div class="stat-label">Total Tasks</div>
@@ -137,7 +156,7 @@
     <div id="taskGrid" class="task-grid"></div>
     <div id="emptyState" class="empty-state hidden">
       <div class="empty-icon">◻</div>
-      <p>No tasks here yet. Hit <strong>+ New Task</strong> to start.</p>
+      <p id="emptyStateMsg">No tasks here yet. Hit <strong>+ New Task</strong> to start.</p>
     </div>
   </section>
 
@@ -230,6 +249,49 @@
     </div>
   </section>
 
+  <!-- ── PROFILE VIEW ───────────────────────────────────────────────────── -->
+  <section id="view-profile" class="view">
+    <div class="profile-grid">
+      <div class="profile-card">
+        <div class="profile-avatar-big" id="profileAvatarBig">?</div>
+        <div class="profile-name-big" id="profileNameBig">Loading…</div>
+        <div class="profile-email-big" id="profileEmailBig"></div>
+        <div class="profile-joined" id="profileJoined"></div>
+      </div>
+
+      <div class="profile-right">
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-header"><h2>Account Statistics</h2></div>
+          <div class="profile-stats-grid" id="profileStatsGrid">
+            <div class="pstat"><div class="pstat-val" id="pstatTotal">0</div><div class="pstat-label">Total Tasks</div></div>
+            <div class="pstat"><div class="pstat-val" id="pstatDone">0</div><div class="pstat-label">Completed</div></div>
+            <div class="pstat"><div class="pstat-val" id="pstatFocus">0</div><div class="pstat-label">Focus Mins</div></div>
+            <div class="pstat"><div class="pstat-val" id="pstatStreak">0</div><div class="pstat-label">Best Streak</div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><h2>Change Password</h2></div>
+          <div class="error-msg-inline hidden" id="pwError"></div>
+          <div class="success-msg-inline hidden" id="pwSuccess"></div>
+          <div class="form-group">
+            <label>Current Password</label>
+            <input type="password" id="currentPw" placeholder="Enter current password">
+          </div>
+          <div class="form-group">
+            <label>New Password</label>
+            <input type="password" id="newPw" placeholder="At least 6 characters">
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input type="password" id="confirmPw" placeholder="Repeat new password">
+          </div>
+          <button class="btn-primary" onclick="changePassword()">Update Password</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <!-- ══ ADD TASK MODAL ════════════════════════════════════════════════════════ -->
@@ -239,7 +301,6 @@
       <h2>New Task</h2>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
-
     <div class="modal-body">
       <div class="form-group">
         <label>Task Title *</label>
@@ -265,8 +326,6 @@
           </select>
         </div>
       </div>
-
-      <!-- AI Preview Panel -->
       <div class="ai-preview" id="aiPreview">
         <div class="ai-preview-header">
           <span class="ai-tag">AI Analysis</span>
@@ -277,7 +336,6 @@
         </div>
       </div>
     </div>
-
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn-primary" onclick="submitTask()">Add Task</button>
@@ -298,8 +356,59 @@
     <div class="modal-body" id="detailBody"></div>
     <div class="modal-footer">
       <button class="btn-danger" onclick="deleteCurrentTask()">Delete</button>
-      <div class="status-btns" id="statusBtns"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-secondary" onclick="openEditModal()">✎ Edit</button>
+        <div class="status-btns" id="statusBtns"></div>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- ══ EDIT TASK MODAL ═══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="editOverlay" onclick="closeEdit(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Task</h2>
+      <button class="modal-close" onclick="closeEdit()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Task Title *</label>
+        <input type="text" id="editTitle" placeholder="Task title">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="editDesc" rows="3" placeholder="Add details…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Due Date</label>
+          <input type="date" id="editDue">
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="editPriority">
+            <option value="critical">🔴 Critical</option>
+            <option value="high">🟠 High</option>
+            <option value="medium">🟡 Medium</option>
+            <option value="low">🟢 Low</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeEdit()">Cancel</button>
+      <button class="btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPLETION CELEBRATION ════════════════════════════════════════════════ -->
+<div class="celebration hidden" id="celebration">
+  <div class="celebration-inner">
+    <div class="celebration-icon">🎉</div>
+    <div class="celebration-text">Task Complete!</div>
+    <div class="celebration-sub">Great work — keep the momentum going!</div>
   </div>
 </div>
 
