@@ -1,32 +1,57 @@
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
-import json, os, uuid, random, functools
+import json, os, uuid, random, functools, base64
 
 app = Flask(__name__)
-app.secret_key = "focusflow_secret_key_2026_hnd_project"
+app.secret_key = os.environ.get("SECRET_KEY", "focusflow_secret_key_2026_hnd_project")
 
-USERS_FILE = "data/users.json"
-DATA_DIR   = "data/tasks"
+# Use /tmp on Render (persists during session) or local data folder
+BASE_DIR   = "/tmp/focusflow" if os.environ.get("RENDER") else "data"
+USERS_FILE = f"{BASE_DIR}/users.json"
+DATA_DIR   = f"{BASE_DIR}/tasks"
+RESET_FILE = f"{BASE_DIR}/resets.json"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+def ensure_dirs():
+    os.makedirs(BASE_DIR, exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
+
 def load_users():
-    os.makedirs("data", exist_ok=True)
+    ensure_dirs()
     if not os.path.exists(USERS_FILE):
         with open(USERS_FILE, "w") as f:
             json.dump({}, f)
         return {}
-    with open(USERS_FILE) as f:
-        return json.load(f)
+    try:
+        with open(USERS_FILE) as f:
+            return json.load(f)
+    except:
+        return {}
 
 def save_users(users):
-    os.makedirs("data", exist_ok=True)
+    ensure_dirs()
     with open(USERS_FILE, "w") as f:
         json.dump(users, f, indent=2)
 
+def load_resets():
+    ensure_dirs()
+    if not os.path.exists(RESET_FILE):
+        return {}
+    try:
+        with open(RESET_FILE) as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_resets(resets):
+    ensure_dirs()
+    with open(RESET_FILE, "w") as f:
+        json.dump(resets, f, indent=2)
+
 def user_file(uid):
-    os.makedirs(DATA_DIR, exist_ok=True)
+    ensure_dirs()
     return f"{DATA_DIR}/{uid}.json"
 
 def load_data(uid):
@@ -37,10 +62,14 @@ def load_data(uid):
             "streak": 0, "last_active": ""}}
         save_data(uid, default)
         return default
-    with open(path) as f:
-        return json.load(f)
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except:
+        return {"tasks":[],"sessions":[],"stats":{"total_completed":0,"total_focus_minutes":0,"streak":0,"last_active":""}}
 
 def save_data(uid, data):
+    ensure_dirs()
     with open(user_file(uid), "w") as f:
         json.dump(data, f, indent=2)
 
@@ -339,6 +368,65 @@ def log_focus():
                               "task_id":body.get("task_id","")})
     save_data(current_uid(), data)
     return jsonify({"ok":True,"total":data["stats"]["total_focus_minutes"]})
+
+@app.route("/forgot-password")
+def forgot_password_page():
+    if "user_id" in session:
+        return redirect("/")
+    return render_template("auth.html", mode="forgot")
+
+@app.route("/reset-password")
+def reset_password_page():
+    token = request.args.get("token", "")
+    return render_template("auth.html", mode="reset", token=token)
+
+@app.route("/api/auth/forgot-password", methods=["POST"])
+def forgot_password():
+    body  = request.json
+    email = (body.get("email", "")).strip().lower()
+    users = load_users()
+    # Always return success to prevent email enumeration
+    if email in users:
+        token   = str(uuid.uuid4()).replace("-","")
+        resets  = load_resets()
+        resets[token] = {
+            "email":   email,
+            "expires": (datetime.now() + timedelta(hours=1)).isoformat()
+        }
+        save_resets(resets)
+        # In production you'd email the link — for demo we return it directly
+        reset_link = f"/reset-password?token={token}"
+        return jsonify({"ok": True, "reset_link": reset_link,
+                        "message": "Reset link generated."})
+    return jsonify({"ok": True,
+                    "message": "If that email exists, a reset link has been generated."})
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+def reset_password():
+    body     = request.json
+    token    = body.get("token", "")
+    new_pw   = body.get("new_password", "")
+    if not token or not new_pw:
+        return jsonify({"error": "Invalid request."}), 400
+    if len(new_pw) < 6:
+        return jsonify({"error": "Password must be at least 6 characters."}), 400
+    resets = load_resets()
+    record = resets.get(token)
+    if not record:
+        return jsonify({"error": "Invalid or expired reset link."}), 400
+    if datetime.now() > datetime.fromisoformat(record["expires"]):
+        del resets[token]
+        save_resets(resets)
+        return jsonify({"error": "This reset link has expired. Please request a new one."}), 400
+    users = load_users()
+    email = record["email"]
+    if email not in users:
+        return jsonify({"error": "Account not found."}), 404
+    users[email]["password"] = generate_password_hash(new_pw)
+    save_users(users)
+    del resets[token]
+    save_resets(resets)
+    return jsonify({"ok": True})
 
 @app.route("/api/auth/change-password", methods=["POST"])
 def change_password():

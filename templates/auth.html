@@ -3,319 +3,146 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FocusFlow — {{ 'Sign In' if mode == 'login' else 'Create Account' }}</title>
+  <title>FocusFlow —
+    {% if mode == 'login' %}Sign In
+    {% elif mode == 'signup' %}Create Account
+    {% elif mode == 'forgot' %}Forgot Password
+    {% else %}Reset Password{% endif %}
+  </title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --bg:      #0d0f14;
-      --surface: #141720;
-      --surface2:#1a1e2b;
-      --border:  #252a38;
-      --text:    #e8eaf0;
-      --text-2:  #8b90a6;
-      --text-3:  #555b72;
-      --accent:  #f97316;
-      --accent2: #fb923c;
-      --green:   #22c55e;
-      --red:     #f43f5e;
+      --bg:#0d0f14; --surface:#141720; --surface2:#1a1e2b;
+      --border:#252a38; --text:#e8eaf0; --text-2:#8b90a6; --text-3:#555b72;
+      --accent:#f97316; --accent2:#fb923c; --green:#22c55e; --red:#f43f5e;
     }
-
     body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      position: relative;
-      overflow: hidden;
+      background:var(--bg); color:var(--text);
+      font-family:'DM Sans',sans-serif; min-height:100vh;
+      display:flex; align-items:center; justify-content:center;
+      padding:20px; position:relative; overflow:hidden;
     }
-
-    /* background orbs */
     body::before {
-      content: '';
-      position: fixed;
-      width: 500px; height: 500px;
-      background: radial-gradient(circle, rgba(249,115,22,.08) 0%, transparent 70%);
-      top: -100px; left: -100px;
-      pointer-events: none;
+      content:''; position:fixed; width:500px; height:500px;
+      background:radial-gradient(circle,rgba(249,115,22,.08) 0%,transparent 70%);
+      top:-100px; left:-100px; pointer-events:none;
     }
     body::after {
-      content: '';
-      position: fixed;
-      width: 400px; height: 400px;
-      background: radial-gradient(circle, rgba(59,130,246,.06) 0%, transparent 70%);
-      bottom: -80px; right: -80px;
-      pointer-events: none;
+      content:''; position:fixed; width:400px; height:400px;
+      background:radial-gradient(circle,rgba(59,130,246,.06) 0%,transparent 70%);
+      bottom:-80px; right:-80px; pointer-events:none;
     }
-
     .auth-wrap {
-      display: flex;
-      width: 100%;
-      max-width: 900px;
-      min-height: 540px;
-      border-radius: 20px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-      box-shadow: 0 32px 80px rgba(0,0,0,.6);
-      position: relative;
-      z-index: 1;
+      display:flex; width:100%; max-width:900px; min-height:540px;
+      border-radius:20px; overflow:hidden; border:1px solid var(--border);
+      box-shadow:0 32px 80px rgba(0,0,0,.6); position:relative; z-index:1;
     }
-
-    /* LEFT PANEL */
     .auth-left {
-      flex: 1;
-      background: linear-gradient(135deg, #0f1420 0%, #1a1e2b 50%, #0f1420 100%);
-      padding: 48px 40px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      border-right: 1px solid var(--border);
-      position: relative;
-      overflow: hidden;
+      flex:1; background:linear-gradient(135deg,#0f1420 0%,#1a1e2b 50%,#0f1420 100%);
+      padding:48px 40px; display:flex; flex-direction:column;
+      justify-content:space-between; border-right:1px solid var(--border);
+      position:relative; overflow:hidden;
     }
-
     .auth-left::before {
-      content: '';
-      position: absolute;
-      width: 300px; height: 300px;
-      background: radial-gradient(circle, rgba(249,115,22,.1) 0%, transparent 70%);
-      bottom: -50px; right: -50px;
-      pointer-events: none;
+      content:''; position:absolute; width:300px; height:300px;
+      background:radial-gradient(circle,rgba(249,115,22,.1) 0%,transparent 70%);
+      bottom:-50px; right:-50px; pointer-events:none;
     }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .brand-icon { color: var(--accent); font-size: 24px; }
-
-    .brand-name {
-      font-family: 'Syne', sans-serif;
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -.5px;
-    }
-
-    .auth-left-content { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px 0; }
-
-    .auth-tagline {
-      font-family: 'Syne', sans-serif;
-      font-size: 28px;
-      font-weight: 700;
-      line-height: 1.3;
-      margin-bottom: 16px;
-      color: var(--text);
-    }
-
-    .auth-tagline span { color: var(--accent); }
-
-    .auth-desc {
-      font-size: 14px;
-      color: var(--text-2);
-      line-height: 1.7;
-      margin-bottom: 28px;
-    }
-
-    .feature-list { display: flex; flex-direction: column; gap: 12px; }
-
-    .feature-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-      color: var(--text-2);
-    }
-
-    .feature-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-      flex-shrink: 0;
-    }
-
-    .auth-left-footer {
-      font-size: 11px;
-      color: var(--text-3);
-      line-height: 1.5;
-    }
-
-    /* RIGHT PANEL */
+    .brand { display:flex; align-items:center; gap:10px; }
+    .brand-icon { color:var(--accent); font-size:24px; }
+    .brand-name { font-family:'Syne',sans-serif; font-size:22px; font-weight:800; letter-spacing:-.5px; }
+    .auth-left-content { flex:1; display:flex; flex-direction:column; justify-content:center; padding:20px 0; }
+    .auth-tagline { font-family:'Syne',sans-serif; font-size:28px; font-weight:700; line-height:1.3; margin-bottom:16px; }
+    .auth-tagline span { color:var(--accent); }
+    .auth-desc { font-size:14px; color:var(--text-2); line-height:1.7; margin-bottom:28px; }
+    .feature-list { display:flex; flex-direction:column; gap:12px; }
+    .feature-item { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--text-2); }
+    .feature-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); flex-shrink:0; }
+    .auth-left-footer { font-size:11px; color:var(--text-3); line-height:1.5; }
     .auth-right {
-      width: 420px;
-      background: var(--surface);
-      padding: 48px 40px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
+      width:420px; background:var(--surface); padding:48px 40px;
+      display:flex; flex-direction:column; justify-content:center;
     }
-
-    .auth-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
-
-    .auth-subtitle {
-      font-size: 14px;
-      color: var(--text-2);
-      margin-bottom: 32px;
-    }
-
-    .form-group { margin-bottom: 18px; }
-
-    label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: .6px;
-      color: var(--text-3);
-      margin-bottom: 7px;
-    }
-
+    .auth-title { font-family:'Syne',sans-serif; font-size:24px; font-weight:700; margin-bottom:6px; }
+    .auth-subtitle { font-size:14px; color:var(--text-2); margin-bottom:32px; }
+    .form-group { margin-bottom:18px; }
+    label { display:block; font-size:11px; font-weight:600; text-transform:uppercase;
+            letter-spacing:.6px; color:var(--text-3); margin-bottom:7px; }
     input {
-      width: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 9px;
-      padding: 11px 14px;
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      outline: none;
-      transition: border-color .15s, box-shadow .15s;
+      width:100%; background:var(--surface2); border:1px solid var(--border);
+      border-radius:9px; padding:11px 14px; color:var(--text);
+      font-family:'DM Sans',sans-serif; font-size:14px; outline:none;
+      transition:border-color .15s, box-shadow .15s;
     }
-
-    input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(249,115,22,.12);
-    }
-
-    input::placeholder { color: var(--text-3); }
-
+    input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(249,115,22,.12); }
+    input::placeholder { color:var(--text-3); }
     .error-msg {
-      display: none;
-      background: rgba(244,63,94,.1);
-      border: 1px solid rgba(244,63,94,.25);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 13px;
-      color: var(--red);
-      margin-bottom: 16px;
+      display:none; background:rgba(244,63,94,.1); border:1px solid rgba(244,63,94,.25);
+      border-radius:8px; padding:10px 14px; font-size:13px; color:var(--red); margin-bottom:16px;
     }
-    .error-msg.show { display: block; }
-
+    .error-msg.show { display:block; }
+    .success-msg {
+      display:none; background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.25);
+      border-radius:8px; padding:10px 14px; font-size:13px; color:var(--green); margin-bottom:16px;
+    }
+    .success-msg.show { display:block; }
+    .reset-link-box {
+      display:none; background:rgba(249,115,22,.08); border:1px solid rgba(249,115,22,.25);
+      border-radius:8px; padding:12px 14px; font-size:13px; color:var(--accent);
+      margin-top:12px; word-break:break-all; line-height:1.6;
+    }
+    .reset-link-box.show { display:block; }
+    .reset-link-box a { color:var(--accent); font-weight:600; }
     .btn-submit {
-      width: 100%;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 9px;
-      padding: 12px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background .15s, transform .1s;
-      margin-top: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+      width:100%; background:var(--accent); color:#fff; border:none;
+      border-radius:9px; padding:12px; font-family:'DM Sans',sans-serif;
+      font-size:15px; font-weight:600; cursor:pointer;
+      transition:background .15s, transform .1s; margin-top:4px;
+      display:flex; align-items:center; justify-content:center; gap:8px;
     }
-
-    .btn-submit:hover { background: var(--accent2); }
-    .btn-submit:active { transform: scale(.98); }
-    .btn-submit:disabled { opacity: .6; cursor: not-allowed; }
-
+    .btn-submit:hover { background:var(--accent2); }
+    .btn-submit:active { transform:scale(.98); }
+    .btn-submit:disabled { opacity:.6; cursor:not-allowed; }
     .spinner {
-      width: 16px; height: 16px;
-      border: 2px solid rgba(255,255,255,.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin .6s linear infinite;
-      display: none;
+      width:16px; height:16px; border:2px solid rgba(255,255,255,.3);
+      border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; display:none;
     }
-    .btn-submit.loading .spinner { display: block; }
-    .btn-submit.loading .btn-text { display: none; }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .auth-switch {
-      text-align: center;
-      margin-top: 20px;
-      font-size: 13px;
-      color: var(--text-2);
-    }
-
-    .auth-switch a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }
-
-    .auth-switch a:hover { text-decoration: underline; }
-
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 20px 0;
-      color: var(--text-3);
-      font-size: 12px;
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-
-    /* password strength */
-    .pw-strength { margin-top: 6px; display: none; }
-    .pw-strength.show { display: block; }
-    .pw-bar {
-      height: 3px;
-      border-radius: 2px;
-      background: var(--border);
-      overflow: hidden;
-      margin-bottom: 4px;
-    }
-    .pw-fill { height: 100%; border-radius: 2px; transition: width .3s, background .3s; }
-    .pw-label { font-size: 11px; color: var(--text-3); }
-
-    @media (max-width: 700px) {
-      .auth-left { display: none; }
-      .auth-right { width: 100%; padding: 36px 28px; }
+    .btn-submit.loading .spinner { display:block; }
+    .btn-submit.loading .btn-text { display:none; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .auth-switch { text-align:center; margin-top:20px; font-size:13px; color:var(--text-2); }
+    .auth-switch a { color:var(--accent); text-decoration:none; font-weight:600; }
+    .auth-switch a:hover { text-decoration:underline; }
+    .links-row { display:flex; justify-content:space-between; margin-top:14px; font-size:13px; }
+    .links-row a { color:var(--accent); text-decoration:none; font-weight:600; }
+    .links-row a:hover { text-decoration:underline; }
+    .pw-strength { margin-top:6px; display:none; }
+    .pw-strength.show { display:block; }
+    .pw-bar { height:3px; border-radius:2px; background:var(--border); overflow:hidden; margin-bottom:4px; }
+    .pw-fill { height:100%; border-radius:2px; transition:width .3s, background .3s; }
+    .pw-label { font-size:11px; color:var(--text-3); }
+    .back-link { display:inline-flex; align-items:center; gap:6px; color:var(--text-2);
+                 font-size:13px; text-decoration:none; margin-bottom:20px; }
+    .back-link:hover { color:var(--accent); }
+    @media (max-width:700px) {
+      .auth-left { display:none; }
+      .auth-right { width:100%; padding:36px 28px; }
     }
   </style>
 </head>
 <body>
-
 <div class="auth-wrap">
-  <!-- LEFT -->
+  <!-- LEFT PANEL -->
   <div class="auth-left">
     <div class="brand">
       <span class="brand-icon">◈</span>
       <span class="brand-name">FocusFlow</span>
     </div>
-
     <div class="auth-left-content">
-      <h2 class="auth-tagline">
-        Work smarter with<br><span>AI-powered</span><br>productivity.
-      </h2>
-      <p class="auth-desc">
-        FocusFlow analyses your tasks in real time, assigns priority, estimates time, and builds your work plan — automatically.
-      </p>
+      <h2 class="auth-tagline">Work smarter with<br><span>AI-powered</span><br>productivity.</h2>
+      <p class="auth-desc">FocusFlow analyses your tasks in real time, assigns priority, estimates time, and builds your work plan — automatically.</p>
       <div class="feature-list">
         <div class="feature-item"><div class="feature-dot"></div>AI task analysis and smart prioritisation</div>
         <div class="feature-item"><div class="feature-dot"></div>Pomodoro focus timer with session tracking</div>
@@ -323,21 +150,19 @@
         <div class="feature-item"><div class="feature-dot"></div>Daily streak tracking and completion analytics</div>
       </div>
     </div>
-
     <div class="auth-left-footer">
       HND Final Year Project &nbsp;·&nbsp; Software &amp; Web Development<br>
       Built with Python, Flask, and HTML/CSS/JS
     </div>
   </div>
 
-  <!-- RIGHT -->
+  <!-- RIGHT PANEL -->
   <div class="auth-right">
+
     {% if mode == 'login' %}
     <h2 class="auth-title">Welcome back</h2>
     <p class="auth-subtitle">Sign in to continue to your workspace.</p>
-
     <div class="error-msg" id="errorMsg"></div>
-
     <div class="form-group">
       <label>Email Address</label>
       <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
@@ -346,22 +171,18 @@
       <label>Password</label>
       <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
     </div>
-
     <button class="btn-submit" id="submitBtn" onclick="handleLogin()">
-      <span class="btn-text">Sign In</span>
-      <div class="spinner"></div>
+      <span class="btn-text">Sign In</span><div class="spinner"></div>
     </button>
-
-    <div class="auth-switch">
-      Don't have an account? <a href="/signup">Create one free</a>
+    <div class="links-row">
+      <a href="/signup">Create account</a>
+      <a href="/forgot-password">Forgot password?</a>
     </div>
 
-    {% else %}
+    {% elif mode == 'signup' %}
     <h2 class="auth-title">Create account</h2>
     <p class="auth-subtitle">Start managing your tasks with AI assistance.</p>
-
     <div class="error-msg" id="errorMsg"></div>
-
     <div class="form-group">
       <label>Full Name</label>
       <input type="text" id="name" placeholder="e.g. Bashir Ayande" autocomplete="name">
@@ -379,34 +200,71 @@
         <div class="pw-label" id="pwLabel"></div>
       </div>
     </div>
-
     <button class="btn-submit" id="submitBtn" onclick="handleSignup()">
-      <span class="btn-text">Create Account</span>
-      <div class="spinner"></div>
+      <span class="btn-text">Create Account</span><div class="spinner"></div>
     </button>
+    <div class="auth-switch">Already have an account? <a href="/login">Sign in</a></div>
 
-    <div class="auth-switch">
-      Already have an account? <a href="/login">Sign in</a>
+    {% elif mode == 'forgot' %}
+    <a href="/login" class="back-link">← Back to Sign In</a>
+    <h2 class="auth-title">Forgot password?</h2>
+    <p class="auth-subtitle">Enter your email address and we will generate a reset link for you.</p>
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="success-msg" id="successMsg"></div>
+    <div class="reset-link-box" id="resetLinkBox"></div>
+    <div class="form-group">
+      <label>Email Address</label>
+      <input type="email" id="email" placeholder="you@example.com">
     </div>
+    <button class="btn-submit" id="submitBtn" onclick="handleForgot()">
+      <span class="btn-text">Generate Reset Link</span><div class="spinner"></div>
+    </button>
+    <div class="auth-switch"><a href="/login">Back to Sign In</a></div>
+
+    {% else %}
+    <a href="/login" class="back-link">← Back to Sign In</a>
+    <h2 class="auth-title">Reset password</h2>
+    <p class="auth-subtitle">Enter your new password below.</p>
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="success-msg" id="successMsg"></div>
+    <div class="form-group">
+      <label>New Password</label>
+      <input type="password" id="newPassword" placeholder="At least 6 characters"
+             oninput="checkStrength(this.value)">
+      <div class="pw-strength" id="pwStrength">
+        <div class="pw-bar"><div class="pw-fill" id="pwFill"></div></div>
+        <div class="pw-label" id="pwLabel"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Confirm New Password</label>
+      <input type="password" id="confirmPassword" placeholder="Repeat password">
+    </div>
+    <button class="btn-submit" id="submitBtn" onclick="handleReset()">
+      <span class="btn-text">Reset Password</span><div class="spinner"></div>
+    </button>
     {% endif %}
+
   </div>
 </div>
 
 <script>
+  const TOKEN = "{{ token or '' }}";
+
   function setLoading(on) {
     const btn = document.getElementById('submitBtn');
     btn.disabled = on;
     btn.classList.toggle('loading', on);
   }
-
   function showError(msg) {
     const el = document.getElementById('errorMsg');
-    el.textContent = msg;
-    el.classList.add('show');
+    el.textContent = msg; el.classList.add('show');
   }
-
-  function hideError() {
-    document.getElementById('errorMsg').classList.remove('show');
+  function hideError() { document.getElementById('errorMsg').classList.remove('show'); }
+  function showSuccess(msg) {
+    const el = document.getElementById('successMsg');
+    if (!el) return;
+    el.textContent = msg; el.classList.add('show');
   }
 
   async function handleLogin() {
@@ -417,9 +275,8 @@
     setLoading(true);
     try {
       const r = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({email, password})
       });
       const d = await r.json();
       if (!r.ok) { showError(d.error || 'Login failed.'); setLoading(false); return; }
@@ -437,9 +294,8 @@
     setLoading(true);
     try {
       const r = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password })
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name, email, password})
       });
       const d = await r.json();
       if (!r.ok) { showError(d.error || 'Signup failed.'); setLoading(false); return; }
@@ -447,10 +303,56 @@
     } catch(e) { showError('Network error. Please try again.'); setLoading(false); }
   }
 
+  async function handleForgot() {
+    hideError();
+    const email = document.getElementById('email').value.trim();
+    if (!email) { showError('Please enter your email address.'); return; }
+    setLoading(true);
+    try {
+      const r = await fetch('/api/auth/forgot-password', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({email})
+      });
+      const d = await r.json();
+      setLoading(false);
+      if (d.reset_link) {
+        showSuccess('Reset link generated! Click the link below to reset your password:');
+        const box = document.getElementById('resetLinkBox');
+        box.innerHTML = '🔗 <a href="' + d.reset_link + '">' + window.location.origin + d.reset_link + '</a>';
+        box.classList.add('show');
+        document.getElementById('email').value = '';
+      } else {
+        showSuccess('If that email exists in our system, a reset link has been generated.');
+      }
+    } catch(e) { showError('Network error. Please try again.'); setLoading(false); }
+  }
+
+  async function handleReset() {
+    hideError();
+    const newPassword     = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    if (!newPassword || !confirmPassword) { showError('Please fill in all fields.'); return; }
+    if (newPassword.length < 6) { showError('Password must be at least 6 characters.'); return; }
+    if (newPassword !== confirmPassword) { showError('Passwords do not match.'); return; }
+    if (!TOKEN) { showError('Invalid reset link. Please request a new one.'); return; }
+    setLoading(true);
+    try {
+      const r = await fetch('/api/auth/reset-password', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({token: TOKEN, new_password: newPassword})
+      });
+      const d = await r.json();
+      if (!r.ok) { showError(d.error || 'Reset failed.'); setLoading(false); return; }
+      showSuccess('Password reset successfully! Redirecting to login…');
+      setTimeout(() => { window.location.href = '/login'; }, 2000);
+    } catch(e) { showError('Network error. Please try again.'); setLoading(false); }
+  }
+
   function checkStrength(val) {
     const el    = document.getElementById('pwStrength');
     const fill  = document.getElementById('pwFill');
     const label = document.getElementById('pwLabel');
+    if (!el) return;
     if (!val) { el.classList.remove('show'); return; }
     el.classList.add('show');
     let score = 0;
@@ -460,11 +362,11 @@
     if (/[0-9]/.test(val)) score++;
     if (/[^A-Za-z0-9]/.test(val)) score++;
     const levels = [
-      { w:'20%',  bg:'#f43f5e', t:'Too short' },
-      { w:'40%',  bg:'#f97316', t:'Weak' },
-      { w:'60%',  bg:'#facc15', t:'Fair' },
-      { w:'80%',  bg:'#22c55e', t:'Strong' },
-      { w:'100%', bg:'#22c55e', t:'Very strong' },
+      {w:'20%', bg:'#f43f5e', t:'Too short'},
+      {w:'40%', bg:'#f97316', t:'Weak'},
+      {w:'60%', bg:'#facc15', t:'Fair'},
+      {w:'80%', bg:'#22c55e', t:'Strong'},
+      {w:'100%',bg:'#22c55e', t:'Very strong'},
     ];
     const lv = levels[Math.min(score, 4)];
     fill.style.width      = lv.w;
@@ -473,15 +375,13 @@
     label.style.color     = lv.bg;
   }
 
-  // Allow Enter key
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      {% if mode == 'login' %}
-      handleLogin();
-      {% else %}
-      handleSignup();
-      {% endif %}
-    }
+    if (e.key !== 'Enter') return;
+    {% if mode == 'login' %}   handleLogin();
+    {% elif mode == 'signup' %} handleSignup();
+    {% elif mode == 'forgot' %} handleForgot();
+    {% else %}                  handleReset();
+    {% endif %}
   });
 </script>
 </body>

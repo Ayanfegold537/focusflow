@@ -87,6 +87,10 @@ function showView(name) {
     dashboard:'Dashboard', tasks:'My Tasks', focus:'Focus Mode',
     insights:'AI Insights', profile:'My Profile'
   }[name];
+  // close sidebar on mobile after navigation
+  if (window.innerWidth <= 640) {
+    document.getElementById('sidebar').classList.remove('open');
+  }
   if (name === 'tasks')    renderTasks();
   if (name === 'focus')    loadFocusTasks();
   if (name === 'insights') loadReport();
@@ -96,6 +100,18 @@ function showView(name) {
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
 }
+
+// close sidebar when clicking outside it on mobile
+document.addEventListener('click', function(e) {
+  const sidebar = document.getElementById('sidebar');
+  const hamburger = document.querySelector('.hamburger');
+  if (window.innerWidth <= 640 &&
+      sidebar.classList.contains('open') &&
+      !sidebar.contains(e.target) &&
+      e.target !== hamburger) {
+    sidebar.classList.remove('open');
+  }
+});
 
 /* ─── Overdue Banner ────────────────────────────────────────────────────── */
 function checkOverdueBanner() {
