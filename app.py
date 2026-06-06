@@ -1,83 +1,216 @@
-from flask import Flask, request, jsonify, render_template, session, redirect, url_for
+from flask import Flask, request, jsonify, render_template, session, redirect
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
-import json, os, uuid, random, functools, base64
+import os, uuid, random, functools, json
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "focusflow_secret_key_2026_hnd_project")
+app.secret_key = os.environ.get("SECRET_KEY", "focusflow_secret_key_2026_hnd")
 
-# Use /tmp on Render (persists during session) or local data folder
-BASE_DIR   = "/tmp/focusflow" if os.environ.get("RENDER") else "data"
-USERS_FILE = f"{BASE_DIR}/users.json"
-DATA_DIR   = f"{BASE_DIR}/tasks"
-RESET_FILE = f"{BASE_DIR}/resets.json"
+# ── Database setup ────────────────────────────────────────────────────────────
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# Convert postgres:// to postgresql:// for SQLAlchemy
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-def ensure_dirs():
-    os.makedirs(BASE_DIR, exist_ok=True)
-    os.makedirs(DATA_DIR, exist_ok=True)
+USE_DB = bool(DATABASE_URL)
 
-def load_users():
-    ensure_dirs()
-    if not os.path.exists(USERS_FILE):
-        with open(USERS_FILE, "w") as f:
-            json.dump({}, f)
-        return {}
+if USE_DB:
+    from sqlalchemy import create_engine, text
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
+    def init_db():
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id VARCHAR(20) PRIMARY KEY,
+                    name VARCHAR(200) NOT NULL,
+                    email VARCHAR(200) UNIQUE NOT NULL,
+                    password VARCHAR(500) NOT NULL,
+                    created TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resets (
+                    token VARCHAR(100) PRIMARY KEY,
+                    email VARCHAR(200) NOT NULL,
+                    expires TIMESTAMP NOT NULL
+                )
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS user_data (
+                    user_id VARCHAR(20) PRIMARY KEY,
+                    data TEXT NOT NULL,
+                    updated TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            conn.commit()
+
     try:
+        init_db()
+        print("Database initialized successfully.")
+    except Exception as e:
+        print(f"DB init error: {e}")
+
+# ── File-based fallback (local dev) ──────────────────────────────────────────
+else:
+    BASE_DIR   = "data"
+    USERS_FILE = f"{BASE_DIR}/users.json"
+    DATA_DIR   = f"{BASE_DIR}/tasks"
+    RESET_FILE = f"{BASE_DIR}/resets.json"
+
+    def ensure_dirs():
+        os.makedirs(BASE_DIR, exist_ok=True)
+        os.makedirs(DATA_DIR, exist_ok=True)
+
+# ── User helpers ──────────────────────────────────────────────────────────────
+
+def get_user_by_email(email):
+    if USE_DB:
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "SELECT id, name, email, password, created FROM users WHERE email = :e"),
+                {"e": email}).fetchone()
+            if r:
+                return {"id":r[0],"name":r[1],"email":r[2],"password":r[3],"created":str(r[4])}
+            return None
+    else:
+        ensure_dirs()
+        if not os.path.exists(USERS_FILE):
+            return None
         with open(USERS_FILE) as f:
-            return json.load(f)
-    except:
-        return {}
+            users = json.load(f)
+        return users.get(email)
 
-def save_users(users):
-    ensure_dirs()
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2)
+def create_user(uid, name, email, pw_hash):
+    if USE_DB:
+        with engine.connect() as conn:
+            conn.execute(text(
+                "INSERT INTO users (id, name, email, password) VALUES (:id,:n,:e,:p)"),
+                {"id":uid,"n":name,"e":email,"p":pw_hash})
+            conn.commit()
+    else:
+        ensure_dirs()
+        users = {}
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE) as f:
+                users = json.load(f)
+        users[email] = {"id":uid,"name":name,"email":email,
+                        "password":pw_hash,"created":datetime.now().isoformat()}
+        with open(USERS_FILE,"w") as f:
+            json.dump(users, f, indent=2)
 
-def load_resets():
-    ensure_dirs()
-    if not os.path.exists(RESET_FILE):
-        return {}
-    try:
+def update_user_password(email, new_hash):
+    if USE_DB:
+        with engine.connect() as conn:
+            conn.execute(text("UPDATE users SET password=:p WHERE email=:e"),
+                         {"p":new_hash,"e":email})
+            conn.commit()
+    else:
+        ensure_dirs()
+        with open(USERS_FILE) as f:
+            users = json.load(f)
+        if email in users:
+            users[email]["password"] = new_hash
+            with open(USERS_FILE,"w") as f:
+                json.dump(users, f, indent=2)
+
+# ── Reset token helpers ───────────────────────────────────────────────────────
+
+def create_reset_token(token, email, expires):
+    if USE_DB:
+        with engine.connect() as conn:
+            conn.execute(text(
+                "INSERT INTO resets (token,email,expires) VALUES (:t,:e,:x) "
+                "ON CONFLICT (token) DO UPDATE SET email=:e, expires=:x"),
+                {"t":token,"e":email,"x":expires})
+            conn.commit()
+    else:
+        ensure_dirs()
+        resets = {}
+        if os.path.exists(RESET_FILE):
+            with open(RESET_FILE) as f:
+                resets = json.load(f)
+        resets[token] = {"email":email,"expires":expires.isoformat()}
+        with open(RESET_FILE,"w") as f:
+            json.dump(resets, f, indent=2)
+
+def get_reset_token(token):
+    if USE_DB:
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "SELECT email, expires FROM resets WHERE token=:t"),
+                {"t":token}).fetchone()
+            if r:
+                return {"email":r[0],"expires":r[1]}
+            return None
+    else:
+        ensure_dirs()
+        if not os.path.exists(RESET_FILE):
+            return None
         with open(RESET_FILE) as f:
-            return json.load(f)
-    except:
-        return {}
+            resets = json.load(f)
+        rec = resets.get(token)
+        if rec:
+            rec["expires"] = datetime.fromisoformat(rec["expires"])
+        return rec
 
-def save_resets(resets):
-    ensure_dirs()
-    with open(RESET_FILE, "w") as f:
-        json.dump(resets, f, indent=2)
+def delete_reset_token(token):
+    if USE_DB:
+        with engine.connect() as conn:
+            conn.execute(text("DELETE FROM resets WHERE token=:t"),{"t":token})
+            conn.commit()
+    else:
+        ensure_dirs()
+        if not os.path.exists(RESET_FILE):
+            return
+        with open(RESET_FILE) as f:
+            resets = json.load(f)
+        resets.pop(token, None)
+        with open(RESET_FILE,"w") as f:
+            json.dump(resets, f, indent=2)
 
-def user_file(uid):
-    ensure_dirs()
-    return f"{DATA_DIR}/{uid}.json"
+# ── Task data helpers ─────────────────────────────────────────────────────────
 
 def load_data(uid):
-    path = user_file(uid)
-    if not os.path.exists(path):
-        default = {"tasks": [], "sessions": [], "stats": {
-            "total_completed": 0, "total_focus_minutes": 0,
-            "streak": 0, "last_active": ""}}
-        save_data(uid, default)
-        return default
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except:
-        return {"tasks":[],"sessions":[],"stats":{"total_completed":0,"total_focus_minutes":0,"streak":0,"last_active":""}}
+    if USE_DB:
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "SELECT data FROM user_data WHERE user_id=:u"),
+                {"u":uid}).fetchone()
+            if r:
+                return json.loads(r[0])
+    else:
+        ensure_dirs()
+        path = f"{DATA_DIR}/{uid}.json"
+        if os.path.exists(path):
+            with open(path) as f:
+                return json.load(f)
+    return {"tasks":[],"sessions":[],"stats":{
+        "total_completed":0,"total_focus_minutes":0,"streak":0,"last_active":""}}
 
 def save_data(uid, data):
-    ensure_dirs()
-    with open(user_file(uid), "w") as f:
-        json.dump(data, f, indent=2)
+    data_str = json.dumps(data)
+    if USE_DB:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                INSERT INTO user_data (user_id, data, updated)
+                VALUES (:u, :d, NOW())
+                ON CONFLICT (user_id) DO UPDATE SET data=:d, updated=NOW()
+            """), {"u":uid,"d":data_str})
+            conn.commit()
+    else:
+        ensure_dirs()
+        with open(f"{DATA_DIR}/{uid}.json","w") as f:
+            f.write(data_str)
+
+# ── Auth decorator ────────────────────────────────────────────────────────────
 
 def login_required(f):
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         if "user_id" not in session:
-            return jsonify({"error": "Unauthorized", "redirect": "/login"}), 401
+            return jsonify({"error":"Unauthorized","redirect":"/login"}), 401
         return f(*args, **kwargs)
     return decorated
 
@@ -92,7 +225,6 @@ PRIORITY_KEYWORDS = {
     "medium":   ["should","need","review","update","check","finish","complete","prepare"],
     "low":      ["maybe","someday","optional","explore","idea","consider","read","watch"]
 }
-
 CATEGORY_KEYWORDS = {
     "academic":  ["study","exam","assignment","lecture","thesis","research","course","class","lab"],
     "personal":  ["gym","health","sleep","family","friend","shopping","cook","clean","exercise"],
@@ -100,7 +232,6 @@ CATEGORY_KEYWORDS = {
     "creative":  ["design","write","draw","code","build","create","develop","plan","sketch"],
     "finance":   ["pay","budget","money","bill","bank","fee","tax","invoice","purchase"]
 }
-
 MOTIVATIONAL = [
     "You're building momentum — keep going! 🔥",
     "Small steps lead to big results. Stay focused.",
@@ -116,13 +247,11 @@ def ai_analyze_task(title, description=""):
     priority = "medium"
     for p, words in PRIORITY_KEYWORDS.items():
         if any(w in text for w in words):
-            priority = p
-            break
+            priority = p; break
     category = "general"
     for cat, words in CATEGORY_KEYWORDS.items():
         if any(w in text for w in words):
-            category = cat
-            break
+            category = cat; break
     duration = 30
     if any(w in text for w in ["thesis","research","project","report","exam"]):
         duration = 120
@@ -130,8 +259,8 @@ def ai_analyze_task(title, description=""):
         duration = 60
     elif any(w in text for w in ["email","check","call","pay","submit"]):
         duration = 15
-    subtasks  = generate_subtasks(title, category)
-    suggestion = generate_suggestion(title, priority, duration, category)
+    subtasks   = generate_subtasks(title, category)
+    suggestion = generate_suggestion(priority, duration, category)
     return {"priority":priority,"category":category,"duration":duration,
             "subtasks":subtasks,"suggestion":suggestion}
 
@@ -152,47 +281,47 @@ def generate_subtasks(title, category):
         return ["Break the task into steps","Work on the first step",
                 "Review progress","Mark complete"]
 
-def generate_suggestion(title, priority, duration, category):
+def generate_suggestion(priority, duration, category):
     tips = {
-        "academic": f"Schedule a dedicated {duration}-min deep-work block. Remove distractions and use the Pomodoro technique.",
-        "work":     f"Block {duration} minutes on your calendar. Communicate any dependencies early.",
-        "personal": f"Try pairing this with an existing habit. Consistency beats intensity.",
+        "academic": f"Schedule a dedicated {duration}-min deep-work block. Use the Pomodoro technique.",
+        "work":     f"Block {duration} minutes on your calendar. Communicate dependencies early.",
+        "personal": f"Pair this with an existing habit. Consistency beats intensity.",
         "creative": f"Start with a 10-min warm-up before diving in for {duration} minutes.",
         "finance":  f"Set a timer for {duration} minutes — financial tasks feel bigger than they are.",
-        "general":  f"Commit to {duration} minutes of focused work. You'll likely finish faster than expected."
+        "general":  f"Commit to {duration} minutes of focused work. You will likely finish faster than expected."
     }
     return tips.get(category, tips["general"])
 
 def ai_productivity_report(tasks, stats):
     completed   = [t for t in tasks if t.get("status") == "done"]
     pending     = [t for t in tasks if t.get("status") == "pending"]
-    overdue     = [t for t in tasks if t.get("status") == "pending" and
+    overdue     = [t for t in tasks if t.get("status") != "done" and
                    t.get("due_date") and t["due_date"] < datetime.now().strftime("%Y-%m-%d")]
     in_progress = [t for t in tasks if t.get("status") == "in_progress"]
-    by_category = {}
+    by_cat      = {}
     for t in completed:
         c = t.get("category","general")
-        by_category[c] = by_category.get(c,0)+1
-    top_category    = max(by_category, key=by_category.get) if by_category else "general"
-    completion_rate = round(len(completed)/max(len(tasks),1)*100)
-    if completion_rate >= 75:
+        by_cat[c] = by_cat.get(c,0)+1
+    top_cat  = max(by_cat, key=by_cat.get) if by_cat else "general"
+    rate     = round(len(completed)/max(len(tasks),1)*100)
+    if rate >= 75:
         insight = "Outstanding productivity! You're completing tasks at a high rate. Keep building on this momentum."
-    elif completion_rate >= 50:
+    elif rate >= 50:
         insight = "You're making solid progress. Focus on clearing your pending high-priority tasks next."
     elif overdue:
         insight = f"You have {len(overdue)} overdue task(s). Address those first before adding new ones."
     else:
         insight = "Getting started is the hardest part. Pick your easiest task right now and knock it out."
     return {
-        "completed":completion_rate,"pending":len(pending),"in_progress":len(in_progress),
-        "overdue":len(overdue),"completion_rate":completion_rate,"top_category":top_category,
+        "completed":len(completed),"pending":len(pending),"in_progress":len(in_progress),
+        "overdue":len(overdue),"completion_rate":rate,"top_category":top_cat,
         "insight":insight,"streak":stats.get("streak",0),
         "focus_minutes":stats.get("total_focus_minutes",0),
         "motivational":random.choice(MOTIVATIONAL),
-        "total": len(tasks), "done_count": len(completed)
+        "total":len(tasks),"done_count":len(completed)
     }
 
-# ── AUTH ROUTES ───────────────────────────────────────────────────────────────
+# ── Page routes ───────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -202,15 +331,25 @@ def index():
 
 @app.route("/login")
 def login_page():
-    if "user_id" in session:
-        return redirect("/")
+    if "user_id" in session: return redirect("/")
     return render_template("auth.html", mode="login")
 
 @app.route("/signup")
 def signup_page():
-    if "user_id" in session:
-        return redirect("/")
+    if "user_id" in session: return redirect("/")
     return render_template("auth.html", mode="signup")
+
+@app.route("/forgot-password")
+def forgot_page():
+    if "user_id" in session: return redirect("/")
+    return render_template("auth.html", mode="forgot")
+
+@app.route("/reset-password")
+def reset_page():
+    token = request.args.get("token","")
+    return render_template("auth.html", mode="reset", token=token)
+
+# ── Auth API ──────────────────────────────────────────────────────────────────
 
 @app.route("/api/auth/signup", methods=["POST"])
 def signup():
@@ -222,36 +361,34 @@ def signup():
         return jsonify({"error":"All fields are required."}), 400
     if len(password) < 6:
         return jsonify({"error":"Password must be at least 6 characters."}), 400
-    users = load_users()
-    if email in users:
-        return jsonify({"error":"An account with this email already exists."}), 409
-    uid = str(uuid.uuid4())[:12]
-    users[email] = {
-        "id":       uid,
-        "name":     name,
-        "email":    email,
-        "password": generate_password_hash(password),
-        "created":  datetime.now().isoformat()
-    }
-    save_users(users)
-    session["user_id"]    = uid
-    session["user_name"]  = name
-    session["user_email"] = email
-    return jsonify({"ok":True,"name":name}), 201
+    try:
+        existing = get_user_by_email(email)
+        if existing:
+            return jsonify({"error":"An account with this email already exists."}), 409
+        uid = str(uuid.uuid4())[:12]
+        create_user(uid, name, email, generate_password_hash(password))
+        session["user_id"]    = uid
+        session["user_name"]  = name
+        session["user_email"] = email
+        return jsonify({"ok":True,"name":name}), 201
+    except Exception as e:
+        return jsonify({"error":f"Signup failed: {str(e)}"}), 500
 
 @app.route("/api/auth/login", methods=["POST"])
 def login():
     body     = request.json
     email    = (body.get("email","")).strip().lower()
     password = body.get("password","")
-    users    = load_users()
-    user     = users.get(email)
-    if not user or not check_password_hash(user["password"], password):
-        return jsonify({"error":"Invalid email or password."}), 401
-    session["user_id"]    = user["id"]
-    session["user_name"]  = user["name"]
-    session["user_email"] = email
-    return jsonify({"ok":True,"name":user["name"]}), 200
+    try:
+        user = get_user_by_email(email)
+        if not user or not check_password_hash(user["password"], password):
+            return jsonify({"error":"Invalid email or password."}), 401
+        session["user_id"]    = user["id"]
+        session["user_name"]  = user["name"]
+        session["user_email"] = email
+        return jsonify({"ok":True,"name":user["name"]}), 200
+    except Exception as e:
+        return jsonify({"error":f"Login failed: {str(e)}"}), 500
 
 @app.route("/api/auth/logout", methods=["POST"])
 def logout():
@@ -262,16 +399,81 @@ def logout():
 def me():
     if "user_id" not in session:
         return jsonify({"error":"Not logged in"}), 401
-    users = load_users()
-    email = session.get("user_email")
-    user  = users.get(email, {})
-    return jsonify({
-        "name":    session.get("user_name"),
-        "email":   email,
-        "created": user.get("created", "")
-    })
+    try:
+        user = get_user_by_email(session.get("user_email",""))
+        return jsonify({
+            "name":    session.get("user_name"),
+            "email":   session.get("user_email"),
+            "created": str(user.get("created","")) if user else ""
+        })
+    except:
+        return jsonify({"name":session.get("user_name"),"email":session.get("user_email"),"created":""})
 
-# ── TASK ROUTES ───────────────────────────────────────────────────────────────
+@app.route("/api/auth/forgot-password", methods=["POST"])
+def forgot_password():
+    body  = request.json
+    email = (body.get("email","")).strip().lower()
+    try:
+        user = get_user_by_email(email)
+        if user:
+            token   = str(uuid.uuid4()).replace("-","")
+            expires = datetime.now() + timedelta(hours=1)
+            create_reset_token(token, email, expires)
+            reset_link = f"/reset-password?token={token}"
+            return jsonify({"ok":True,"reset_link":reset_link})
+        return jsonify({"ok":True,"message":"If that email exists, a reset link has been generated."})
+    except Exception as e:
+        return jsonify({"error":str(e)}), 500
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+def reset_password():
+    body   = request.json
+    token  = body.get("token","")
+    new_pw = body.get("new_password","")
+    if not token or not new_pw:
+        return jsonify({"error":"Invalid request."}), 400
+    if len(new_pw) < 6:
+        return jsonify({"error":"Password must be at least 6 characters."}), 400
+    try:
+        record = get_reset_token(token)
+        if not record:
+            return jsonify({"error":"Invalid or expired reset link."}), 400
+        expires = record["expires"]
+        if isinstance(expires, str):
+            expires = datetime.fromisoformat(expires)
+        if datetime.now() > expires:
+            delete_reset_token(token)
+            return jsonify({"error":"This reset link has expired. Please request a new one."}), 400
+        user = get_user_by_email(record["email"])
+        if not user:
+            return jsonify({"error":"Account not found."}), 404
+        update_user_password(record["email"], generate_password_hash(new_pw))
+        delete_reset_token(token)
+        return jsonify({"ok":True})
+    except Exception as e:
+        return jsonify({"error":str(e)}), 500
+
+@app.route("/api/auth/change-password", methods=["POST"])
+def change_password():
+    if "user_id" not in session:
+        return jsonify({"error":"Unauthorized"}), 401
+    body       = request.json
+    current_pw = body.get("current_password","")
+    new_pw     = body.get("new_password","")
+    if not current_pw or not new_pw:
+        return jsonify({"error":"All fields are required."}), 400
+    if len(new_pw) < 6:
+        return jsonify({"error":"New password must be at least 6 characters."}), 400
+    try:
+        user = get_user_by_email(session.get("user_email",""))
+        if not user or not check_password_hash(user["password"], current_pw):
+            return jsonify({"error":"Current password is incorrect."}), 401
+        update_user_password(session["user_email"], generate_password_hash(new_pw))
+        return jsonify({"ok":True})
+    except Exception as e:
+        return jsonify({"error":str(e)}), 500
+
+# ── Task API ──────────────────────────────────────────────────────────────────
 
 @app.route("/api/tasks", methods=["GET"])
 @login_required
@@ -368,85 +570,6 @@ def log_focus():
                               "task_id":body.get("task_id","")})
     save_data(current_uid(), data)
     return jsonify({"ok":True,"total":data["stats"]["total_focus_minutes"]})
-
-@app.route("/forgot-password")
-def forgot_password_page():
-    if "user_id" in session:
-        return redirect("/")
-    return render_template("auth.html", mode="forgot")
-
-@app.route("/reset-password")
-def reset_password_page():
-    token = request.args.get("token", "")
-    return render_template("auth.html", mode="reset", token=token)
-
-@app.route("/api/auth/forgot-password", methods=["POST"])
-def forgot_password():
-    body  = request.json
-    email = (body.get("email", "")).strip().lower()
-    users = load_users()
-    # Always return success to prevent email enumeration
-    if email in users:
-        token   = str(uuid.uuid4()).replace("-","")
-        resets  = load_resets()
-        resets[token] = {
-            "email":   email,
-            "expires": (datetime.now() + timedelta(hours=1)).isoformat()
-        }
-        save_resets(resets)
-        # In production you'd email the link — for demo we return it directly
-        reset_link = f"/reset-password?token={token}"
-        return jsonify({"ok": True, "reset_link": reset_link,
-                        "message": "Reset link generated."})
-    return jsonify({"ok": True,
-                    "message": "If that email exists, a reset link has been generated."})
-
-@app.route("/api/auth/reset-password", methods=["POST"])
-def reset_password():
-    body     = request.json
-    token    = body.get("token", "")
-    new_pw   = body.get("new_password", "")
-    if not token or not new_pw:
-        return jsonify({"error": "Invalid request."}), 400
-    if len(new_pw) < 6:
-        return jsonify({"error": "Password must be at least 6 characters."}), 400
-    resets = load_resets()
-    record = resets.get(token)
-    if not record:
-        return jsonify({"error": "Invalid or expired reset link."}), 400
-    if datetime.now() > datetime.fromisoformat(record["expires"]):
-        del resets[token]
-        save_resets(resets)
-        return jsonify({"error": "This reset link has expired. Please request a new one."}), 400
-    users = load_users()
-    email = record["email"]
-    if email not in users:
-        return jsonify({"error": "Account not found."}), 404
-    users[email]["password"] = generate_password_hash(new_pw)
-    save_users(users)
-    del resets[token]
-    save_resets(resets)
-    return jsonify({"ok": True})
-
-@app.route("/api/auth/change-password", methods=["POST"])
-def change_password():
-    if "user_id" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-    body        = request.json
-    current_pw  = body.get("current_password", "")
-    new_pw      = body.get("new_password", "")
-    if not current_pw or not new_pw:
-        return jsonify({"error": "All fields are required."}), 400
-    if len(new_pw) < 6:
-        return jsonify({"error": "New password must be at least 6 characters."}), 400
-    users = load_users()
-    email = session.get("user_email")
-    user  = users.get(email)
-    if not user or not check_password_hash(user["password"], current_pw):
-        return jsonify({"error": "Current password is incorrect."}), 401
-    users[email]["password"] = generate_password_hash(new_pw)
-    save_users(users)
-    return jsonify({"ok": True})
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
