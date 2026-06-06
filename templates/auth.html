@@ -118,6 +118,14 @@
     .links-row { display:flex; justify-content:space-between; margin-top:14px; font-size:13px; }
     .links-row a { color:var(--accent); text-decoration:none; font-weight:600; }
     .links-row a:hover { text-decoration:underline; }
+    .pw-wrap { position:relative; display:flex; align-items:center; }
+    .pw-wrap input { padding-right:42px; }
+    .pw-toggle {
+      position:absolute; right:12px; background:none; border:none;
+      cursor:pointer; font-size:16px; color:var(--text-3);
+      padding:0; line-height:1; transition:color .15s;
+    }
+    .pw-toggle:hover { color:var(--text); }
     .pw-strength { margin-top:6px; display:none; }
     .pw-strength.show { display:block; }
     .pw-bar { height:3px; border-radius:2px; background:var(--border); overflow:hidden; margin-bottom:4px; }
@@ -169,7 +177,10 @@
     </div>
     <div class="form-group">
       <label>Password</label>
-      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+      <div class="pw-wrap">
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+        <button type="button" class="pw-toggle" onclick="togglePw('password',this)">👁</button>
+      </div>
     </div>
     <button class="btn-submit" id="submitBtn" onclick="handleLogin()">
       <span class="btn-text">Sign In</span><div class="spinner"></div>
@@ -193,8 +204,11 @@
     </div>
     <div class="form-group">
       <label>Password</label>
-      <input type="password" id="password" placeholder="At least 6 characters"
-             autocomplete="new-password" oninput="checkStrength(this.value)">
+      <div class="pw-wrap">
+        <input type="password" id="password" placeholder="At least 6 characters"
+               autocomplete="new-password" oninput="checkStrength(this.value)">
+        <button type="button" class="pw-toggle" onclick="togglePw('password',this)">👁</button>
+      </div>
       <div class="pw-strength" id="pwStrength">
         <div class="pw-bar"><div class="pw-fill" id="pwFill"></div></div>
         <div class="pw-label" id="pwLabel"></div>
@@ -229,8 +243,11 @@
     <div class="success-msg" id="successMsg"></div>
     <div class="form-group">
       <label>New Password</label>
-      <input type="password" id="newPassword" placeholder="At least 6 characters"
-             oninput="checkStrength(this.value)">
+      <div class="pw-wrap">
+        <input type="password" id="newPassword" placeholder="At least 6 characters"
+               oninput="checkStrength(this.value)">
+        <button type="button" class="pw-toggle" onclick="togglePw('newPassword',this)">👁</button>
+      </div>
       <div class="pw-strength" id="pwStrength">
         <div class="pw-bar"><div class="pw-fill" id="pwFill"></div></div>
         <div class="pw-label" id="pwLabel"></div>
@@ -238,7 +255,10 @@
     </div>
     <div class="form-group">
       <label>Confirm New Password</label>
-      <input type="password" id="confirmPassword" placeholder="Repeat password">
+      <div class="pw-wrap">
+        <input type="password" id="confirmPassword" placeholder="Repeat password">
+        <button type="button" class="pw-toggle" onclick="togglePw('confirmPassword',this)">👁</button>
+      </div>
     </div>
     <button class="btn-submit" id="submitBtn" onclick="handleReset()">
       <span class="btn-text">Reset Password</span><div class="spinner"></div>
@@ -250,6 +270,17 @@
 
 <script>
   const TOKEN = "{{ token or '' }}";
+
+  function togglePw(id, btn) {
+    const input = document.getElementById(id);
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      btn.textContent = '👁';
+    }
+  }
 
   function setLoading(on) {
     const btn = document.getElementById('submitBtn');
