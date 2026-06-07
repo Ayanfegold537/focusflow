@@ -571,5 +571,64 @@ def log_focus():
     save_data(current_uid(), data)
     return jsonify({"ok":True,"total":data["stats"]["total_focus_minutes"]})
 
+@app.route("/api/chat", methods=["POST"])
+@login_required
+def chat():
+    import urllib.request, json as json_lib
+    body     = request.json
+    messages = body.get("messages", [])
+    username = session.get("user_name", "User")
+
+    # Build task context
+    try:
+        data        = load_data(current_uid())
+        tasks_list  = data.get("tasks", [])
+        pending     = [t for t in tasks_list if t.get("status") == "pending"]
+        done        = [t for t in tasks_list if t.get("status") == "done"]
+        task_ctx    = f"The user has {len(tasks_list)} total tasks, {len(pending)} pending, and {len(done)} completed."
+        if pending:
+            top = ", ".join([t["title"] for t in pending[:3]])
+            task_ctx += f" Their pending tasks include: {top}."
+    except:
+        task_ctx = ""
+
+    system_prompt = f"""You are FocusFlow AI Assistant — a helpful, friendly, and knowledgeable productivity assistant built into the FocusFlow task management app. You are talking to {username}.
+
+{task_ctx}
+
+Your role is to:
+- Help users with productivity, time management, task planning, and study strategies
+- Answer general knowledge questions clearly and accurately
+- Provide motivational support and encouragement
+- Give practical, actionable advice
+- Be concise but thorough — aim for helpful, readable responses
+
+Keep responses friendly, warm, and practical. Format responses clearly using short paragraphs. Use bullet points when listing multiple items. Never be preachy or overly formal."""
+
+    payload = {
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 1000,
+        "system": system_prompt,
+        "messages": messages
+    }
+
+    try:
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=json_lib.dumps(payload).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "anthropic-version": "2023-06-01"
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json_lib.loads(resp.read().decode())
+            reply  = result["content"][0]["text"]
+            return jsonify({"ok": True, "reply": reply})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
