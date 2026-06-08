@@ -576,14 +576,13 @@ def log_focus():
 def chat():
     import urllib.request, json as json_lib
     body     = request.json
-    # accept both 'history' and 'messages' from frontend
     messages = body.get("messages") or body.get("history", [])
     username = session.get("user_name", "User")
 
-    # Get API key from environment
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    # Get Gemini API key
+    api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        return jsonify({"error": "AI service is not configured. Please set ANTHROPIC_API_KEY on Render."}), 503
+        return jsonify({"error": "AI service is not configured. Please set GEMINI_API_KEY on Render."}), 503
 
     # Build task context
     try:
@@ -604,63 +603,74 @@ def chat():
     except:
         task_ctx = ""
 
-    system_prompt = f"""You are FocusFlow AI Assistant — a helpful, friendly, and knowledgeable productivity coach built into the FocusFlow task and productivity management app. You are talking to {username}.
+    system_prompt = f"""You are FocusFlow AI Assistant — a helpful, friendly productivity coach built into the FocusFlow task management app. You are talking to {username}.
 
 {task_ctx}
 
 Your role is to:
 - Help with productivity, time management, task planning, and study strategies
-- Answer questions clearly and accurately
-- Provide motivational support and encouragement
 - Give practical, actionable advice personalised to the user's tasks when relevant
-- Be concise but thorough — helpful, readable responses
+- Provide motivational support and encouragement
+- Be concise, warm, and helpful
 
-Keep responses warm and practical. Use bullet points when listing multiple items. Never be preachy or overly formal."""
+Use bullet points when listing multiple items. Keep responses clear and readable."""
 
-    # Ensure messages is a valid list
-    if not isinstance(messages, list):
-        messages = []
+    # Build Gemini conversation
+    # Gemini uses 'user' and 'model' roles (not 'assistant')
+    gemini_contents = []
 
-    # Ensure all messages have correct role format
+    # Add system prompt as first user message (Gemini doesn't have system role)
     clean_messages = []
-    for m in messages[-10:]:
+    for m in (messages or [])[-10:]:
         if isinstance(m, dict) and m.get("role") in ("user","assistant") and m.get("content"):
-            clean_messages.append({"role": m["role"], "content": str(m["content"])})
+            role = "model" if m["role"] == "assistant" else "user"
+            clean_messages.append({
+                "role": role,
+                "parts": [{"text": str(m["content"])}]
+            })
 
-    # Must end with a user message
-    if not clean_messages or clean_messages[-1]["role"] != "user":
-        # take the message from body directly
-        user_msg = body.get("message","")
-        if user_msg:
-            clean_messages.append({"role":"user","content":user_msg})
-        else:
-            return jsonify({"error":"No message provided."}), 400
+    # Get the latest user message
+    user_msg = body.get("message", "")
+    if not user_msg and clean_messages and clean_messages[-1]["role"] == "user":
+        user_msg = clean_messages[-1]["parts"][0]["text"]
+        clean_messages = clean_messages[:-1]
+
+    if not user_msg:
+        return jsonify({"error": "No message provided."}), 400
+
+    # Build final contents with system context prepended to first message
+    if clean_messages:
+        gemini_contents = clean_messages
+        gemini_contents.append({"role":"user","parts":[{"text": user_msg}]})
+    else:
+        # First message — prepend system prompt
+        combined = f"{system_prompt}\n\nUser message: {user_msg}"
+        gemini_contents = [{"role":"user","parts":[{"text": combined}]}]
 
     payload = {
-        "model":      "claude-sonnet-4-20250514",
-        "max_tokens": 1000,
-        "system":     system_prompt,
-        "messages":   clean_messages
+        "contents": gemini_contents,
+        "generationConfig": {
+            "maxOutputTokens": 1000,
+            "temperature":     0.7
+        }
     }
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
     try:
         req = urllib.request.Request(
-            "https://api.anthropic.com/v1/messages",
+            url,
             data    = json_lib.dumps(payload).encode(),
-            headers = {
-                "Content-Type":      "application/json",
-                "x-api-key":         api_key,
-                "anthropic-version": "2023-06-01"
-            },
-            method = "POST"
+            headers = {"Content-Type": "application/json"},
+            method  = "POST"
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
             result = json_lib.loads(resp.read().decode())
-            reply  = result["content"][0]["text"]
-            return jsonify({"ok":True, "reply":reply})
+            reply  = result["candidates"][0]["content"]["parts"][0]["text"]
+            return jsonify({"ok": True, "reply": reply})
     except urllib.error.HTTPError as e:
         err_body = e.read().decode()
-        return jsonify({"error": f"API error {e.code}: {err_body[:200]}"}), 500
+        return jsonify({"error": f"API error {e.code}: {err_body[:300]}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
