@@ -666,7 +666,7 @@ async function sendMessage() {
   // hide suggestions
   document.getElementById('chatSuggestions').style.display = 'none';
 
-  // add user message
+  // add user message to UI and history
   appendMessage('user', message);
   chatHistory.push({ role: 'user', content: message });
   input.value = '';
@@ -683,20 +683,23 @@ async function sendMessage() {
     const r = await fetch('/api/chat', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ message, history: chatHistory.slice(-10) })
+      body:    JSON.stringify({
+        messages: chatHistory.slice(-10),  // send full history as messages
+        message:  message                  // also send plain message as fallback
+      })
     });
     const d = await r.json();
     removeTyping(typingId);
 
     if (d.error) {
-      appendMessage('assistant', 'Sorry, I encountered an error: ' + d.error);
+      appendMessage('assistant', '⚠ ' + d.error);
     } else {
       appendMessage('assistant', d.reply);
       chatHistory.push({ role: 'assistant', content: d.reply });
     }
   } catch(e) {
     removeTyping(typingId);
-    appendMessage('assistant', 'Sorry, I could not connect to the AI service. Please try again.');
+    appendMessage('assistant', '⚠ Network error. Please check your connection and try again.');
   }
 
   chatWaiting = false;

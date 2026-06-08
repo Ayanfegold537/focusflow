@@ -576,56 +576,91 @@ def log_focus():
 def chat():
     import urllib.request, json as json_lib
     body     = request.json
-    messages = body.get("messages", [])
+    # accept both 'history' and 'messages' from frontend
+    messages = body.get("messages") or body.get("history", [])
     username = session.get("user_name", "User")
+
+    # Get API key from environment
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "AI service is not configured. Please set ANTHROPIC_API_KEY on Render."}), 503
 
     # Build task context
     try:
-        data        = load_data(current_uid())
-        tasks_list  = data.get("tasks", [])
-        pending     = [t for t in tasks_list if t.get("status") == "pending"]
-        done        = [t for t in tasks_list if t.get("status") == "done"]
-        task_ctx    = f"The user has {len(tasks_list)} total tasks, {len(pending)} pending, and {len(done)} completed."
+        data       = load_data(current_uid())
+        tasks_list = data.get("tasks", [])
+        pending    = [t for t in tasks_list if t.get("status") == "pending"]
+        done       = [t for t in tasks_list if t.get("status") == "done"]
+        overdue    = [t for t in tasks_list if t.get("status") != "done" and
+                      t.get("due_date","") and
+                      t["due_date"] < datetime.now().strftime("%Y-%m-%d")]
+        task_ctx   = f"The user has {len(tasks_list)} total tasks: {len(pending)} pending, {len(done)} completed"
+        if overdue:
+            task_ctx += f", {len(overdue)} overdue"
+        task_ctx += "."
         if pending:
-            top = ", ".join([t["title"] for t in pending[:3]])
+            top       = ", ".join([t["title"] for t in pending[:4]])
             task_ctx += f" Their pending tasks include: {top}."
     except:
         task_ctx = ""
 
-    system_prompt = f"""You are FocusFlow AI Assistant — a helpful, friendly, and knowledgeable productivity assistant built into the FocusFlow task management app. You are talking to {username}.
+    system_prompt = f"""You are FocusFlow AI Assistant — a helpful, friendly, and knowledgeable productivity coach built into the FocusFlow task and productivity management app. You are talking to {username}.
 
 {task_ctx}
 
 Your role is to:
-- Help users with productivity, time management, task planning, and study strategies
-- Answer general knowledge questions clearly and accurately
+- Help with productivity, time management, task planning, and study strategies
+- Answer questions clearly and accurately
 - Provide motivational support and encouragement
-- Give practical, actionable advice
-- Be concise but thorough — aim for helpful, readable responses
+- Give practical, actionable advice personalised to the user's tasks when relevant
+- Be concise but thorough — helpful, readable responses
 
-Keep responses friendly, warm, and practical. Format responses clearly using short paragraphs. Use bullet points when listing multiple items. Never be preachy or overly formal."""
+Keep responses warm and practical. Use bullet points when listing multiple items. Never be preachy or overly formal."""
+
+    # Ensure messages is a valid list
+    if not isinstance(messages, list):
+        messages = []
+
+    # Ensure all messages have correct role format
+    clean_messages = []
+    for m in messages[-10:]:
+        if isinstance(m, dict) and m.get("role") in ("user","assistant") and m.get("content"):
+            clean_messages.append({"role": m["role"], "content": str(m["content"])})
+
+    # Must end with a user message
+    if not clean_messages or clean_messages[-1]["role"] != "user":
+        # take the message from body directly
+        user_msg = body.get("message","")
+        if user_msg:
+            clean_messages.append({"role":"user","content":user_msg})
+        else:
+            return jsonify({"error":"No message provided."}), 400
 
     payload = {
-        "model": "claude-sonnet-4-20250514",
+        "model":      "claude-sonnet-4-20250514",
         "max_tokens": 1000,
-        "system": system_prompt,
-        "messages": messages
+        "system":     system_prompt,
+        "messages":   clean_messages
     }
 
     try:
         req = urllib.request.Request(
             "https://api.anthropic.com/v1/messages",
-            data=json_lib.dumps(payload).encode(),
-            headers={
-                "Content-Type": "application/json",
+            data    = json_lib.dumps(payload).encode(),
+            headers = {
+                "Content-Type":      "application/json",
+                "x-api-key":         api_key,
                 "anthropic-version": "2023-06-01"
             },
-            method="POST"
+            method = "POST"
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
             result = json_lib.loads(resp.read().decode())
             reply  = result["content"][0]["text"]
-            return jsonify({"ok": True, "reply": reply})
+            return jsonify({"ok":True, "reply":reply})
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode()
+        return jsonify({"error": f"API error {e.code}: {err_body[:200]}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
