@@ -34,9 +34,6 @@
     <button class="nav-item" data-view="profile" onclick="showView('profile')">
       <span class="nav-icon">◉</span> My Profile
     </button>
-    <button class="nav-item" data-view="assistant" onclick="showView('assistant')">
-      <span class="nav-icon">✦</span> AI Assistant
-    </button>
     <button class="nav-item" data-view="chat" onclick="showView('chat')">
       <span class="nav-icon">✦</span> AI Assistant
     </button>
@@ -339,54 +336,6 @@
           rows="1" onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
         <button class="chat-send-btn" id="chatSendBtn" onclick="sendChat()">
           <span id="chatSendIcon">➤</span>
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── AI ASSISTANT VIEW ──────────────────────────────────────────────── -->
-  <section id="view-assistant" class="view">
-    <div class="assistant-wrap">
-      <div class="assistant-header">
-        <div class="assistant-header-left">
-          <div class="assistant-avatar">✦</div>
-          <div>
-            <div class="assistant-name">FocusFlow AI Assistant</div>
-            <div class="assistant-status" id="assistantStatus">Ready to help</div>
-          </div>
-        </div>
-        <button class="btn-clear-chat" onclick="clearChat()">Clear Chat</button>
-      </div>
-
-      <div class="chat-messages" id="chatMessages">
-        <div class="chat-message assistant-msg">
-          <div class="msg-avatar">✦</div>
-          <div class="msg-bubble">
-            <p>Hello! I am your FocusFlow AI Assistant. I can help you with:</p>
-            <ul>
-              <li>Productivity and time management advice</li>
-              <li>Study strategies and focus techniques</li>
-              <li>How to break down difficult tasks</li>
-              <li>Motivation and habit building tips</li>
-              <li>Any questions about using FocusFlow</li>
-            </ul>
-            <p>What would you like help with today?</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="chat-suggestions" id="chatSuggestions">
-        <button class="suggestion-chip" onclick="sendSuggestion(this)">How do I stay focused?</button>
-        <button class="suggestion-chip" onclick="sendSuggestion(this)">Tips for managing deadlines</button>
-        <button class="suggestion-chip" onclick="sendSuggestion(this)">How does the Pomodoro technique work?</button>
-        <button class="suggestion-chip" onclick="sendSuggestion(this)">How to prioritise my tasks?</button>
-      </div>
-
-      <div class="chat-input-wrap">
-        <textarea class="chat-input" id="chatInput" placeholder="Ask me anything about productivity…"
-          rows="1" onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="chat-send-btn" id="chatSendBtn" onclick="sendMessage()">
-          <span class="send-icon">➤</span>
         </button>
       </div>
     </div>

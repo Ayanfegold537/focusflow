@@ -85,7 +85,7 @@ function showView(name) {
   document.querySelector(`[data-view="${name}"]`).classList.add('active');
   document.getElementById('pageTitle').textContent = {
     dashboard:'Dashboard', tasks:'My Tasks', focus:'Focus Mode',
-    insights:'AI Insights', profile:'My Profile', assistant:'AI Assistant'
+    insights:'AI Insights', profile:'My Profile'
   }[name];
   // close sidebar on mobile after navigation
   if (window.innerWidth <= 640) {
@@ -95,7 +95,6 @@ function showView(name) {
   if (name === 'focus')     loadFocusTasks();
   if (name === 'insights')  loadReport();
   if (name === 'profile')   loadProfileStats();
-  if (name === 'assistant') initAssistant();
 }
 
 function toggleSidebar() {
@@ -627,161 +626,3 @@ function togglePwField(id, btn) {
     btn.textContent = '👁';
   }
 }
-
-/* ─── AI Assistant ──────────────────────────────────────────────────────── */
-let chatHistory  = [];
-let chatWaiting  = false;
-let userInitial  = '?';
-
-function initAssistant() {
-  userInitial = (document.getElementById('userAvatar').textContent || '?').trim();
-}
-
-function sendSuggestion(btn) {
-  const text = btn.textContent;
-  document.getElementById('chatInput').value = text;
-  // hide suggestions after first use
-  document.getElementById('chatSuggestions').style.display = 'none';
-  sendMessage();
-}
-
-function handleChatKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
-}
-
-function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-}
-
-async function sendMessage() {
-  if (chatWaiting) return;
-  const input   = document.getElementById('chatInput');
-  const message = input.value.trim();
-  if (!message) return;
-
-  // hide suggestions
-  document.getElementById('chatSuggestions').style.display = 'none';
-
-  // add user message to UI and history
-  appendMessage('user', message);
-  chatHistory.push({ role: 'user', content: message });
-  input.value = '';
-  input.style.height = 'auto';
-
-  // show typing indicator
-  chatWaiting = true;
-  document.getElementById('chatSendBtn').disabled = true;
-  document.getElementById('assistantStatus').textContent = 'Thinking…';
-  document.getElementById('assistantStatus').classList.add('typing');
-  const typingId = appendTyping();
-
-  try {
-    const r = await fetch('/api/chat', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        messages: chatHistory.slice(-10),  // send full history as messages
-        message:  message                  // also send plain message as fallback
-      })
-    });
-    const d = await r.json();
-    removeTyping(typingId);
-
-    if (d.error) {
-      appendMessage('assistant', '⚠ ' + d.error);
-    } else {
-      appendMessage('assistant', d.reply);
-      chatHistory.push({ role: 'assistant', content: d.reply });
-    }
-  } catch(e) {
-    removeTyping(typingId);
-    appendMessage('assistant', '⚠ Network error. Please check your connection and try again.');
-  }
-
-  chatWaiting = false;
-  document.getElementById('chatSendBtn').disabled = false;
-  document.getElementById('assistantStatus').textContent = 'Ready to help';
-  document.getElementById('assistantStatus').classList.remove('typing');
-}
-
-function appendMessage(role, text) {
-  const container = document.getElementById('chatMessages');
-  const div       = document.createElement('div');
-  div.className   = `chat-message ${role === 'user' ? 'user-msg' : 'assistant-msg'}`;
-
-  const avatar    = document.createElement('div');
-  avatar.className = 'msg-avatar';
-  avatar.textContent = role === 'user' ? userInitial : '✦';
-
-  const bubble    = document.createElement('div');
-  bubble.className = 'msg-bubble';
-  bubble.innerHTML = formatMessage(text);
-
-  div.appendChild(avatar);
-  div.appendChild(bubble);
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-  return div;
-}
-
-function appendTyping() {
-  const container = document.getElementById('chatMessages');
-  const div       = document.createElement('div');
-  const id        = 'typing-' + Date.now();
-  div.id          = id;
-  div.className   = 'chat-message assistant-msg';
-  div.innerHTML   = `
-    <div class="msg-avatar">✦</div>
-    <div class="msg-bubble">
-      <div class="typing-indicator">
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-      </div>
-    </div>`;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-  return id;
-}
-
-function removeTyping(id) {
-  const el = document.getElementById(id);
-  if (el) el.remove();
-}
-
-function formatMessage(text) {
-  // Convert markdown-like formatting to HTML
-  return text
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g,'<em>$1</em>')
-    .replace(/^### (.*$)/gm,'<strong>$1</strong>')
-    .replace(/^## (.*$)/gm,'<strong>$1</strong>')
-    .replace(/^# (.*$)/gm,'<strong>$1</strong>')
-    .replace(/^\d+\. (.*$)/gm,'<li>$1</li>')
-    .replace(/^[-•] (.*$)/gm,'<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-    .replace(/\n\n/g,'</p><p>')
-    .replace(/\n/g,'<br>')
-    .replace(/^(.+)$/,'<p>$1</p>');
-}
-
-function clearChat() {
-  chatHistory = [];
-  const container = document.getElementById('chatMessages');
-  container.innerHTML = `
-    <div class="chat-message assistant-msg">
-      <div class="msg-avatar">✦</div>
-      <div class="msg-bubble">
-        <p>Chat cleared! How can I help you today?</p>
-      </div>
-    </div>`;
-  document.getElementById('chatSuggestions').style.display = 'flex';
-}
-
-// initialise when view loads
-const _origShowView = showView;
