@@ -1139,5 +1139,122 @@ def log_focus():
     save_data(current_uid(), data)
     return jsonify({"ok":True,"total":data["stats"]["total_focus_minutes"]})
 
+@app.route("/api/chat", methods=["POST"])
+@login_required
+def chat():
+    body    = request.json
+    message = (body.get("message") or "").strip().lower()
+    history = body.get("history", [])
+    username = session.get("user_name", "User").split()[0]
+
+    # Load user task context
+    try:
+        data       = load_data(current_uid())
+        tasks_list = data.get("tasks", [])
+        pending    = [t for t in tasks_list if t.get("status") == "pending"]
+        done       = [t for t in tasks_list if t.get("status") == "done"]
+        overdue    = [t for t in tasks_list if t.get("status") != "done" and
+                      t.get("due_date","") and
+                      t["due_date"] < datetime.now().strftime("%Y-%m-%d")]
+    except:
+        pending, done, overdue, tasks_list = [], [], [], []
+
+    def task_summary():
+        if not tasks_list:
+            return "You have no tasks yet. Add your first task using the + New Task button."
+        lines = [f"You currently have {len(tasks_list)} tasks:"]
+        if pending:
+            lines.append(f"• {len(pending)} pending: " + ", ".join([t['title'] for t in pending[:3]]))
+        if done:
+            lines.append(f"• {len(done)} completed — great work!")
+        if overdue:
+            lines.append(f"• ⚠ {len(overdue)} overdue — address these first!")
+        return " ".join(lines)
+
+    # ── Knowledge base ─────────────────────────────────────────────────────
+    def get_reply(msg):
+        # Greetings
+        if any(w in msg for w in ["hello","hi ","hey","good morning","good afternoon","good evening","how are you","what's up","sup"]):
+            return f"Hello {username}! 👋 I'm your FocusFlow productivity assistant. I'm here to help you stay focused, manage your tasks, and build better habits. What would you like help with today?"
+
+        # Tasks overview
+        if any(w in msg for w in ["my tasks","how many tasks","task list","show tasks","what tasks"]):
+            return task_summary()
+
+        # Overdue
+        if any(w in msg for w in ["overdue","late","behind","missed deadline"]):
+            if overdue:
+                titles = ", ".join([t['title'] for t in overdue[:3]])
+                return f"⚠ You have {len(overdue)} overdue task(s): {titles}. Here is what to do:\n\n• Open each overdue task immediately\n• Either complete it now or reschedule the due date\n• Use the Pomodoro timer to power through them one at a time\n• Overdue tasks harm your completion rate — tackle them before adding new ones."
+            return "Great news — you have no overdue tasks! Keep staying on top of your deadlines. 🎉"
+
+        # Focus / concentration
+        if any(w in msg for w in ["focus","concentrate","distract","attention","focused","focusin"]):
+            return f"Here are proven strategies to stay focused, {username}:\n\n• **Use the Pomodoro timer** in FocusFlow — work for 25 minutes, then take a 5-minute break\n• Put your phone on silent and away from your desk\n• Close unnecessary browser tabs before starting\n• Work on one task at a time — multitasking reduces productivity by up to 40%\n• Study or work in a consistent location so your brain associates it with focus\n• Use the Focus Mode in FocusFlow to select exactly what you are working on"
+
+        # Pomodoro
+        if any(w in msg for w in ["pomodoro","timer","25 min","time block","work interval"]):
+            return "The **Pomodoro Technique** is a time management method that works like this:\n\n• Work for **25 minutes** with full concentration\n• Take a **5-minute break**\n• After 4 sessions, take a **15-minute long break**\n• Repeat\n\nFocusFlow has a built-in Pomodoro timer in the **Focus Mode** section. Select a task, click Start, and the timer counts down. Your sessions are automatically logged so you can track how much focused time you put in each day."
+
+        # Prioritisation
+        if any(w in msg for w in ["priorit","important first","which task","what to work","start with","urgent"]):
+            if pending:
+                critical = [t for t in pending if t.get("priority") == "critical"]
+                high     = [t for t in pending if t.get("priority") == "high"]
+                if critical:
+                    return f"Based on your tasks, start with your **Critical** priority tasks first:\n\n• {critical[0]['title']}\n\nThe AI has already detected these as urgent. After completing critical tasks, move to your {len(high)} high-priority tasks. Always finish the hardest or most important task before checking emails or doing easy tasks."
+            return f"Here is how to prioritise your tasks, {username}:\n\n• **Critical** — do these immediately, today\n• **High** — do these next, same day if possible\n• **Medium** — schedule these for this week\n• **Low** — do these when everything else is done\n\nFocusFlow's AI automatically assigns priority when you create a task based on keywords like 'urgent', 'deadline', and 'exam'."
+
+        # Procrastination
+        if any(w in msg for w in ["procrastinat","lazy","motivat","can't start","dont want","don't feel","no energy","stuck"]):
+            return f"Procrastination is completely normal, {username} — here is how to beat it:\n\n• **The 2-minute rule**: if a task takes less than 2 minutes, do it right now\n• **Just start**: commit to working for only 5 minutes. You will almost always continue\n• **Break it down**: large tasks feel overwhelming. Use FocusFlow's AI subtasks to see the small steps\n• **Remove friction**: open the task, set the timer, and begin before your brain can object\n• **Reward yourself**: after completing a difficult task, give yourself a small reward\n\nRemember — action creates motivation, not the other way around."
+
+        # Study tips
+        if any(w in msg for w in ["study","exam","revision","revise","learn","memorise","memorize","read","lecture","assignment"]):
+            return f"Here are effective study strategies for you, {username}:\n\n• **Active recall**: instead of re-reading notes, close the book and write down what you remember\n• **Spaced repetition**: review material after 1 day, 3 days, 1 week, then 1 month\n• **Pomodoro sessions**: use FocusFlow's Focus Mode for 25-minute study blocks\n• **Teach it**: explain the topic to someone else — if you can teach it, you know it\n• **Past questions**: always practice with past exam questions in your final days\n• **Create tasks in FocusFlow** for each topic so you track what you have covered"
+
+        # Time management
+        if any(w in msg for w in ["time management","manage time","schedule","plan my day","daily routine","productive day"]):
+            return f"Here is a productive daily routine framework, {username}:\n\n• **Morning**: review your FocusFlow task list, identify your top 3 priorities for the day\n• **First 2 hours**: tackle your most important or most difficult task first (peak energy time)\n• **Midday**: handle emails, meetings, and medium-priority tasks\n• **Afternoon**: use Pomodoro sessions for focused work blocks\n• **Evening**: review what you completed, update task statuses, plan tomorrow\n\nThe key principle: protect your peak energy hours for your most important work."
+
+        # Deadline
+        if any(w in msg for w in ["deadline","due date","submit","submission","running out of time"]):
+            return f"Deadline pressure advice for {username}:\n\n• **Set the due date in FocusFlow** so it shows up as a reminder on your task card\n• Break the work into subtasks — FocusFlow's AI does this automatically when you create a task\n• Work backwards from the deadline to set mini-milestones\n• Start earlier than you think you need to — things always take longer\n• If the deadline is very close: stop planning and start doing. Use the Pomodoro timer and work continuously"
+
+        # Streak / habit
+        if any(w in msg for w in ["streak","habit","consistent","daily","routine","every day"]):
+            return f"Building consistent habits, {username}:\n\n• FocusFlow tracks your **daily streak** — try to complete at least one task every day to keep it going\n• Habits take an average of 66 days to form — be patient with yourself\n• **Habit stacking**: attach a new habit to an existing one (e.g. 'After breakfast I will open FocusFlow and review my tasks')\n• Make it easy: keep FocusFlow open in your browser so it is always one click away\n• Track your progress — your streak counter in FocusFlow shows how consistent you have been"
+
+        # What is FocusFlow
+        if any(w in msg for w in ["focusflow","what is this app","how does this work","what can you do","features","help me use"]):
+            return "**FocusFlow** is an AI-Assisted Task and Productivity Management App. Here is what it does:\n\n• **Dashboard** — see all your task stats and AI productivity insights\n• **My Tasks** — create, manage, and track all your tasks with AI-assigned priorities\n• **Focus Mode** — Pomodoro timer to help you work in focused 25-minute blocks\n• **AI Insights** — analyses your task data and gives personalised recommendations\n• **My Profile** — view your stats and change your password\n\nTo get started, click **+ New Task** at the top right and type a task title. The AI will automatically analyse it!"
+
+        # Completion / done
+        if any(w in msg for w in ["completed","finished","done","accomplished","achieved"]):
+            if done:
+                return f"Amazing work, {username}! 🎉 You have completed {len(done)} task(s) so far. That is real progress!\n\n• Keep marking tasks as Done when you finish them to track your completion rate\n• Check your **AI Insights** page to see your productivity analytics\n• Every completed task builds momentum — keep going!"
+            return f"You are just getting started, {username}! Add your first task and mark it as Done when you complete it. Your completion rate and streak will start building from there. 💪"
+
+        # Motivation
+        if any(w in msg for w in ["motivat","encourage","inspire","tired","exhausted","give up","stressed","overwhelm"]):
+            messages_list = [
+                f"You are doing better than you think, {username}. Every task you complete — no matter how small — is progress. Keep going.",
+                f"The fact that you are here trying to manage your productivity puts you ahead of most people. Don't stop now, {username}.",
+                f"Discipline beats motivation every single day. You don't need to feel ready — just start. The motivation will follow.",
+                f"Break it down into the smallest possible step and do just that one thing. That's how big goals get achieved, {username}.",
+            ]
+            import random
+            return random.choice(messages_list)
+
+        # Stress / anxiety
+        if any(w in msg for w in ["stress","anxious","anxiety","worried","nervous","panic","overwhelm"]):
+            return f"It is okay to feel overwhelmed sometimes, {username}. Here is what helps:\n\n• **Write everything down**: open FocusFlow and create a task for every single thing on your mind. Getting it out of your head reduces anxiety immediately\n• **Pick just one thing**: look at your task list and pick the single most important task. Ignore everything else temporarily\n• **Take a break**: use the 5-minute break mode in Focus Mode to step away and breathe\n• **Progress reduces stress**: the moment you complete even one task, you will feel better\n\nYou can handle this — one task at a time."
+
+        # Default / unknown
+        return f"I'm your FocusFlow productivity assistant, {username}. I can help you with:\n\n• **Task prioritisation** — which tasks to work on first\n• **Focus strategies** — how to concentrate and avoid distractions\n• **Study tips** — effective learning techniques\n• **Time management** — how to plan your day\n• **Motivation** — encouragement when you feel stuck\n• **Pomodoro technique** — how to use the Focus Mode timer\n• **Your tasks** — ask me about your current task list\n\nWhat would you like help with?"
+
+    reply = get_reply(message)
+    return jsonify({"ok": True, "reply": reply})
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
