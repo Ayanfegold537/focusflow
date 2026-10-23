@@ -1,4 +1,4 @@
-import os, json, uuid, hashlib, functools, sqlite3, math
+import os, json, uuid, urllib.request, hashlib, functools, sqlite3, math
 from datetime import date, datetime, timedelta
 from statistics import median
 from flask import Flask, request, jsonify, render_template, session
@@ -58,6 +58,10 @@ TYPES = {
    [("List topics to cover",.10),("Learn each topic",.35),("Practise past questions",.30),("Review weak areas",.15),("Final recap",.10)]),
  "event": (["event","party","trip","wedding","conference","presentation","seminar","meeting"],
    [("Set goal and audience",.10),("Plan details and resources",.25),("Prepare materials",.30),("Rehearse or confirm",.20),("Deliver and follow up",.15)]),
+ "fitness": (["gym","workout","exercise","diet","weight","fitness","training"], [("Set a clear target",.10),("Plan the weekly schedule",.20),("Prepare gear and meals",.20),("Do the sessions",.40),("Track progress and adjust",.10)]),
+ "money": (["budget","save","bill","loan","invest","tax","money","fees"], [("List income and costs",.15),("Set a target amount",.15),("Make the payment or plan",.30),("Record it",.20),("Review next month",.20)]),
+ "home": (["clean","laundry","repair","cook","moving","organise","organize","tidy"], [("List what needs doing",.10),("Gather supplies",.15),("Do the main job",.55),("Tidy up",.10),("Final check",.10)]),
+ "shopping": (["buy","shop","order","gift","purchase"], [("Decide what you need",.15),("Compare options and prices",.30),("Set a budget",.15),("Buy or order",.25),("Check and keep the receipt",.15)]),
 }
 GENERIC = [("Clarify the goal",.10),("Break into parts",.20),("Do the main work",.45),("Review the result",.15),("Finish and submit",.10)]
 
@@ -81,8 +85,47 @@ def make_plan(title, due):
         steps.append({"title": name, "minutes": max(15, round(total * frac / 5) * 5),
                       "due": (today() + timedelta(days=math.ceil(cum * days))).isoformat()})
     why = (f"Detected a '{kind}' task" + (f" from the words {hits}" if hits else "") +
-           f"; complexity {cx}/3 gives about {total} minutes, spread backwards over {days} day(s) before the deadline.")
+           f"; complexity {cx}/3 gives about {total} minutes, " + (f"spread backwards over {days} day(s) before the deadline." if due else "planned over a default 7-day window (add a due date to schedule it)."))
     return kind, prio, total, steps, why
+
+SYS = ("You are a task-planning assistant inside a productivity app. Reply with JSON only: "
+ '{"is_task":true,"message":"if not a task: one kind sentence suggesting how to rephrase it as an action","category":"writing|coding|exam|event|fitness|money|home|shopping|personal|general",'
+ '"difficulty":"Easy|Medium|Hard","steps":[{"title":"short action","minutes":30}],"challenges":["three realistic obstacles"],"tip":"one practical tip"}. '
+ "Use 4 to 7 concrete steps in a sensible order. If the input is a question or not an actionable task, set is_task to false.")
+
+def groq_plan(title, due):
+    key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not key: return None
+    model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions",
+        data=json.dumps({"model": model, "temperature": 0.3, "response_format": {"type": "json_object"},
+                         "messages": [{"role": "system", "content": SYS}, {"role": "user", "content": title}]}).encode(),
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + key, "User-Agent": "FocusFlow/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            d = json.loads(json.loads(r.read())["choices"][0]["message"]["content"])
+        if not d.get("is_task", True): return {"is_task": False, "message": str(d.get("message") or "Try describing an action you can complete.")}
+        steps = [{"title": str(x["title"])[:90], "minutes": max(5, min(600, int(x.get("minutes") or 30)))} for x in d["steps"] if isinstance(x, dict) and x.get("title")][:7]
+        if len(steps) < 3: return None
+        total = sum(x["minutes"] for x in steps); days = max(1, (date.fromisoformat(due) - today()).days) if due else 7; cum = 0
+        for x in steps:
+            cum += x["minutes"]; x["due"] = (today() + timedelta(days=math.ceil(cum / total * days))).isoformat()
+        diff = d.get("difficulty") if d.get("difficulty") in ("Easy", "Medium", "Hard") else "Medium"
+        return {"is_task": True, "kind": str(d.get("category") or "general")[:20], "difficulty": diff, "minutes": total, "steps": steps,
+                "challenges": [str(c)[:90] for c in (d.get("challenges") or [])][:4] or CHALLENGES["general"],
+                "why": f"Planned by Groq AI ({model}). " + str(d.get("tip") or ""), "source": "Groq AI"}
+    except Exception as e:
+        app.logger.warning("Groq failed, using rule-based planner: %s", e); return None
+
+QWORDS = ("how ", "what ", "why ", "who ", "when ", "where ", "should ", "can i ", "is it ")
+def plan_for(title, due):
+    p = groq_plan(title, due)
+    if p: return p
+    if title.lower().startswith(QWORDS) or title.strip().endswith("?"):
+        return {"is_task": False, "message": "That looks like a question, not a task. Try an action, e.g. 'Plan a study timetable for next week'."}
+    kind, prio, total, steps, why = make_plan(title, due)
+    return {"is_task": True, "kind": kind, "difficulty": ["Easy", "Easy", "Medium", "Hard"][analyse(title, due)[2]], "minutes": total, "steps": steps,
+            "challenges": CHALLENGES.get(kind, CHALLENGES["general"]), "why": why, "source": "Rule-based planner"}
 
 def effort_of(minutes): return "high" if minutes > 90 else "medium" if minutes > 30 else "low"
 
@@ -151,13 +194,15 @@ def create_task():
     if due:
         try: date.fromisoformat(due)
         except ValueError: return jsonify(error="Bad date."), 400
-    kind, prio, total, steps, why = make_plan(title, due)
+    an = analyse(title, due); prio = an[5]; why = ""
     if b.get("breakdown"):
-        pid = add_task(session["uid"], title, due, kind, prio, total, why=why)
-        for s in steps: add_task(session["uid"], s["title"], s["due"], kind, prio, s["minutes"], parent=pid)
+        p = plan_for(title, due)
+        if not p["is_task"]: return jsonify(error=p["message"]), 400
+        pid = add_task(session["uid"], title, due, p["kind"], prio, p["minutes"], why=p["why"]); why = p["why"]
+        for st in p["steps"]: add_task(session["uid"], st["title"], st["due"], p["kind"], prio, st["minutes"], parent=pid)
     else:
-        add_task(session["uid"], title, due, kind, prio, int(b.get("minutes") or 30))
-    return jsonify(ok=True, why=why if b.get("breakdown") else ""), 201
+        add_task(session["uid"], title, due, an[0], prio, int(b.get("minutes") or 30))
+    return jsonify(ok=True, why=why), 201
 
 @app.patch("/api/tasks/<tid>")
 @need_login
@@ -227,8 +272,9 @@ CHALLENGES = {"writing": ["Procrastinating on the first draft", "Finding reliabl
 def analyze():
     title = ((request.json or {}).get("title") or "").strip()
     if not title: return jsonify(error="Describe the task first."), 400
-    kind, prio, total, steps, why = make_plan(title, ""); cx = analyse(title, "")[2]
-    res = {"title": title, "kind": kind, "difficulty": ["Easy", "Easy", "Medium", "Hard"][cx], "minutes": total, "steps": steps, "challenges": CHALLENGES[kind], "why": why}
+    res = plan_for(title, "")
+    if not res["is_task"]: return jsonify(res)
+    res["title"] = title
     q("INSERT INTO ff_analyses(id,uid,title,result,at) VALUES(:i,:u,:t,:r,:a)", {"i": uuid.uuid4().hex[:10], "u": session["uid"], "t": title, "r": json.dumps(res), "a": now()})
     return jsonify(res)
 
