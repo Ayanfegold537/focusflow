@@ -1,4 +1,4 @@
-import os, uuid, hashlib, functools, sqlite3, math
+import os, json, uuid, hashlib, functools, sqlite3, math
 from datetime import date, datetime, timedelta
 from statistics import median
 from flask import Flask, request, jsonify, render_template, session
@@ -29,10 +29,11 @@ else:
         finally: c.close()
 
 for s in [
- "CREATE TABLE IF NOT EXISTS app_users(id TEXT PRIMARY KEY,name TEXT,email TEXT UNIQUE,pw TEXT,created TEXT)",
- "CREATE TABLE IF NOT EXISTS app_resets(token TEXT PRIMARY KEY,email TEXT,expires TEXT)",
- "CREATE TABLE IF NOT EXISTS app_tasks(id TEXT PRIMARY KEY,uid TEXT,title TEXT,category TEXT,priority TEXT,effort TEXT,minutes INTEGER,due TEXT,status TEXT,postponed INTEGER,parent TEXT,why TEXT,created TEXT,done_at TEXT)",
- "CREATE TABLE IF NOT EXISTS app_sessions(id TEXT PRIMARY KEY,uid TEXT,task_id TEXT,minutes INTEGER,at TEXT)"]: q(s)
+ "CREATE TABLE IF NOT EXISTS ff_users(id TEXT PRIMARY KEY,name TEXT,username TEXT UNIQUE,gender TEXT,dob TEXT,email TEXT UNIQUE,pw TEXT,created TEXT)",
+ "CREATE TABLE IF NOT EXISTS ff_resets(token TEXT PRIMARY KEY,email TEXT,expires TEXT)",
+ "CREATE TABLE IF NOT EXISTS ff_tasks(id TEXT PRIMARY KEY,uid TEXT,title TEXT,category TEXT,priority TEXT,effort TEXT,minutes INTEGER,due TEXT,status TEXT,postponed INTEGER,parent TEXT,why TEXT,created TEXT,done_at TEXT)",
+ "CREATE TABLE IF NOT EXISTS ff_analyses(id TEXT PRIMARY KEY,uid TEXT,title TEXT,result TEXT,at TEXT)",
+ "CREATE TABLE IF NOT EXISTS ff_sessions(id TEXT PRIMARY KEY,uid TEXT,task_id TEXT,minutes INTEGER,at TEXT)"]: q(s)
 
 H = lambda t: hashlib.sha256(t.encode()).hexdigest()
 now = lambda: datetime.now().isoformat(timespec="seconds")
@@ -90,15 +91,17 @@ def index(): return render_template("index.html")
 @app.post("/api/signup")
 def signup():
     b = request.json or {}; name, email, pw = (b.get("name") or "").strip(), (b.get("email") or "").strip().lower(), b.get("password") or ""
-    if not name or "@" not in email or len(pw) < 8: return jsonify(error="Name, valid email and a password of 8+ characters are required."), 400
-    if q("SELECT id FROM app_users WHERE email=:e", {"e": email}, one=True): return jsonify(error="That email is already registered."), 409
+    un = (b.get("username") or "").strip().lower()
+    if not name or not un or "@" not in email or len(pw) < 8: return jsonify(error="Name, username, valid email and a password of 8+ characters are required."), 400
+    if q("SELECT id FROM ff_users WHERE username=:u", {"u": un}, one=True): return jsonify(error="That username is taken."), 409
+    if q("SELECT id FROM ff_users WHERE email=:e", {"e": email}, one=True): return jsonify(error="That email is already registered."), 409
     uid = uuid.uuid4().hex[:12]
-    q("INSERT INTO app_users(id,name,email,pw,created) VALUES(:i,:n,:e,:p,:c)", {"i": uid, "n": name, "e": email, "p": generate_password_hash(pw), "c": now()})
+    q("INSERT INTO ff_users(id,name,username,gender,dob,email,pw,created) VALUES(:i,:n,:un,:g,:d,:e,:p,:c)", {"i": uid, "n": name, "un": un, "g": b.get("gender") or "", "d": b.get("dob") or "", "e": email, "p": generate_password_hash(pw), "c": now()})
     session.update(uid=uid, name=name); return jsonify(name=name), 201
 
 @app.post("/api/login")
 def login():
-    b = request.json or {}; u = q("SELECT * FROM app_users WHERE email=:e", {"e": (b.get("email") or "").strip().lower()}, one=True)
+    b = request.json or {}; k = (b.get("email") or "").strip().lower(); u = q("SELECT * FROM ff_users WHERE email=:e OR username=:e", {"e": k}, one=True)
     if not u or not check_password_hash(u["pw"], b.get("password") or ""): return jsonify(error="Invalid email or password."), 401
     session.update(uid=u["id"], name=u["name"]); return jsonify(name=u["name"])
 
@@ -112,29 +115,29 @@ def me(): return jsonify(name=session["name"])
 @app.post("/api/forgot")
 def forgot():
     email = ((request.json or {}).get("email") or "").strip().lower(); link = None
-    if q("SELECT id FROM app_users WHERE email=:e", {"e": email}, one=True):
+    if q("SELECT id FROM ff_users WHERE email=:e", {"e": email}, one=True):
         tok = uuid.uuid4().hex + uuid.uuid4().hex
-        q("INSERT INTO app_resets(token,email,expires) VALUES(:t,:e,:x)", {"t": H(tok), "e": email, "x": (datetime.now() + timedelta(hours=1)).isoformat()})
+        q("INSERT INTO ff_resets(token,email,expires) VALUES(:t,:e,:x)", {"t": H(tok), "e": email, "x": (datetime.now() + timedelta(hours=1)).isoformat()})
         link = "/?token=" + tok   # no email server configured, so the link is shown on screen
     return jsonify(ok=True, link=link)
 
 @app.post("/api/reset")
 def reset():
     b = request.json or {}; pw = b.get("password") or ""
-    r = q("SELECT * FROM app_resets WHERE token=:t", {"t": H(b.get("token") or "")}, one=True)
+    r = q("SELECT * FROM ff_resets WHERE token=:t", {"t": H(b.get("token") or "")}, one=True)
     if len(pw) < 8: return jsonify(error="Password must be 8+ characters."), 400
     if not r or datetime.fromisoformat(r["expires"]) < datetime.now(): return jsonify(error="Link invalid or expired."), 400
-    q("UPDATE app_users SET pw=:p WHERE email=:e", {"p": generate_password_hash(pw), "e": r["email"]})
-    q("DELETE FROM app_resets WHERE token=:t", {"t": r["token"]}); return jsonify(ok=True)
+    q("UPDATE ff_users SET pw=:p WHERE email=:e", {"p": generate_password_hash(pw), "e": r["email"]})
+    q("DELETE FROM ff_resets WHERE token=:t", {"t": r["token"]}); return jsonify(ok=True)
 
 # ---------- Tasks ----------
 @app.get("/api/tasks")
 @need_login
-def tasks(): return jsonify(q("SELECT * FROM app_tasks WHERE uid=:u ORDER BY created", {"u": session["uid"]}))
+def tasks(): return jsonify(q("SELECT * FROM ff_tasks WHERE uid=:u ORDER BY created", {"u": session["uid"]}))
 
 def add_task(uid, title, due, cat, prio, mins, parent=None, why=""):
     tid = uuid.uuid4().hex[:10]
-    q("INSERT INTO app_tasks(id,uid,title,category,priority,effort,minutes,due,status,postponed,parent,why,created) VALUES(:i,:u,:t,:c,:p,:e,:m,:d,'open',0,:pa,:w,:cr)",
+    q("INSERT INTO ff_tasks(id,uid,title,category,priority,effort,minutes,due,status,postponed,parent,why,created) VALUES(:i,:u,:t,:c,:p,:e,:m,:d,'open',0,:pa,:w,:cr)",
       {"i": tid, "u": uid, "t": title, "c": cat, "p": prio, "e": effort_of(mins), "m": mins, "d": due or "", "pa": parent, "w": why, "cr": now()})
     return tid
 
@@ -157,29 +160,29 @@ def create_task():
 @app.patch("/api/tasks/<tid>")
 @need_login
 def update_task(tid):
-    b = request.json or {}; t = q("SELECT * FROM app_tasks WHERE id=:i AND uid=:u", {"i": tid, "u": session["uid"]}, one=True)
+    b = request.json or {}; t = q("SELECT * FROM ff_tasks WHERE id=:i AND uid=:u", {"i": tid, "u": session["uid"]}, one=True)
     if not t: return jsonify(error="Not found."), 404
-    if "status" in b and b["status"] in ("open", "done"):
-        q("UPDATE app_tasks SET status=:s,done_at=:d WHERE id=:i", {"s": b["status"], "d": now() if b["status"] == "done" else None, "i": tid})
+    if "status" in b and b["status"] in ("open", "progress", "done", "archived"):
+        q("UPDATE ff_tasks SET status=:s,done_at=:d WHERE id=:i", {"s": b["status"], "d": now() if b["status"] == "done" else None, "i": tid})
     if b.get("due"):   # moving a deadline later counts as a postponement
         late = t["due"] and b["due"] > t["due"]
-        q("UPDATE app_tasks SET due=:d,postponed=postponed+:n WHERE id=:i", {"d": b["due"], "n": 1 if late else 0, "i": tid})
+        q("UPDATE ff_tasks SET due=:d,postponed=postponed+:n WHERE id=:i", {"d": b["due"], "n": 1 if late else 0, "i": tid})
     return jsonify(ok=True)
 
 @app.delete("/api/tasks/<tid>")
 @need_login
 def delete_task(tid):
-    q("DELETE FROM app_tasks WHERE (id=:i OR parent=:i) AND uid=:u", {"i": tid, "u": session["uid"]}); return jsonify(ok=True)
+    q("DELETE FROM ff_tasks WHERE (id=:i OR parent=:i) AND uid=:u", {"i": tid, "u": session["uid"]}); return jsonify(ok=True)
 
 # ---------- Energy-matched "what should I do now?" ----------
 @app.get("/api/next")
 @need_login
 def next_task():
     lvl = {"low": 1, "medium": 2, "high": 3}; en = lvl.get(request.args.get("energy"), 2)
-    avail = int(request.args.get("minutes") or 0); rows = q("SELECT * FROM app_tasks WHERE uid=:u", {"u": session["uid"]})
+    avail = int(request.args.get("minutes") or 0); rows = q("SELECT * FROM ff_tasks WHERE uid=:u", {"u": session["uid"]})
     parents = {r["parent"] for r in rows if r["parent"]}; out = []
     for t in rows:
-        if t["status"] != "open" or t["id"] in parents: continue
+        if t["status"] not in ("open", "progress") or t["id"] in parents: continue
         left = (date.fromisoformat(t["due"]) - today()).days if t["due"] else None
         urg = .2 if left is None else 1 if left < 0 else .9 if left <= 1 else .7 if left <= 3 else .5 if left <= 7 else .3
         pr = {"high": 1, "medium": .6, "low": .3}.get(t["priority"], .5)
@@ -193,13 +196,13 @@ def next_task():
 @need_login
 def log_session():
     b = request.json or {}; m = int(b.get("minutes") or 0)
-    if m > 0: q("INSERT INTO app_sessions(id,uid,task_id,minutes,at) VALUES(:i,:u,:t,:m,:a)", {"i": uuid.uuid4().hex[:10], "u": session["uid"], "t": b.get("task_id") or "", "m": m, "a": now()})
+    if m > 0: q("INSERT INTO ff_sessions(id,uid,task_id,minutes,at) VALUES(:i,:u,:t,:m,:a)", {"i": uuid.uuid4().hex[:10], "u": session["uid"], "t": b.get("task_id") or "", "m": m, "a": now()})
     return jsonify(ok=True)
 
 @app.get("/api/insights")
 @need_login
 def insights():
-    rows = q("SELECT * FROM app_tasks WHERE uid=:u", {"u": session["uid"]}); ses = q("SELECT minutes FROM app_sessions WHERE uid=:u ORDER BY at DESC", {"u": session["uid"]})
+    rows = q("SELECT * FROM ff_tasks WHERE uid=:u", {"u": session["uid"]}); ses = q("SELECT minutes FROM ff_sessions WHERE uid=:u ORDER BY at DESC", {"u": session["uid"]})
     done = [r for r in rows if r["status"] == "done"]; post = {}
     for r in rows: post[r["category"]] = post.get(r["category"], 0) + (r["postponed"] or 0)
     top = max(post, key=post.get) if post and max(post.values()) else None
@@ -207,6 +210,62 @@ def insights():
     rec = round(min(50, max(15, median([s["minutes"] for s in ses[:10]]))) ) if ses else 25
     msg = (f"You postponed {post[top]} '{top}' deadline(s). Try scheduling those first." if top else "No postponement pattern yet. Keep deadlines steady.")
     return jsonify(total=len(rows), done=len(done), rate=round(100 * len(done) / len(rows)) if rows else 0, overdue=len(overdue),
-                   focus=sum(s["minutes"] for s in ses), postponed=post, message=msg, suggested_session=rec)
+                   focus=sum(s["minutes"] for s in ses), progress=len([r for r in rows if r["status"] == "progress"]), archived=len([r for r in rows if r["status"] == "archived"]),
+                   monthly={m: len([r for r in done if (r["done_at"] or "")[:7] == m]) for m in sorted({(r["done_at"] or "")[:7] for r in done if r["done_at"]})}, postponed=post, message=msg, suggested_session=rec)
+
+# ---------- AI Task Assistant (analysis history) ----------
+CHALLENGES = {"writing": ["Procrastinating on the first draft", "Finding reliable sources", "Leaving too little time to revise"],
+ "coding": ["Scope creep", "Debugging unexpected errors", "Underestimating testing time"],
+ "exam": ["Covering every topic in time", "Re-reading instead of practising", "Exam anxiety"],
+ "event": ["Last-minute changes", "Coordinating people and resources", "Going over budget"],
+ "general": ["An unclear goal", "Distractions", "Underestimating the time needed"]}
+
+@app.post("/api/analyze")
+@need_login
+def analyze():
+    title = ((request.json or {}).get("title") or "").strip()
+    if not title: return jsonify(error="Describe the task first."), 400
+    kind, prio, total, steps, why = make_plan(title, ""); cx = analyse(title, "")[2]
+    res = {"title": title, "kind": kind, "difficulty": ["Easy", "Easy", "Medium", "Hard"][cx], "minutes": total, "steps": steps, "challenges": CHALLENGES[kind], "why": why}
+    q("INSERT INTO ff_analyses(id,uid,title,result,at) VALUES(:i,:u,:t,:r,:a)", {"i": uuid.uuid4().hex[:10], "u": session["uid"], "t": title, "r": json.dumps(res), "a": now()})
+    return jsonify(res)
+
+@app.get("/api/analyses")
+@need_login
+def analyses(): return jsonify([dict(json.loads(r["result"]), id=r["id"], at=r["at"]) for r in q("SELECT * FROM ff_analyses WHERE uid=:u ORDER BY at DESC", {"u": session["uid"]})][:15])
+
+@app.delete("/api/analyses")
+@need_login
+def clear_analyses():
+    q("DELETE FROM ff_analyses WHERE uid=:u AND (id=:i OR :i='')", {"u": session["uid"], "i": request.args.get("id", "")}); return jsonify(ok=True)
+
+@app.get("/api/inbox")
+@need_login
+def inbox():
+    out = []
+    for t in q("SELECT * FROM ff_tasks WHERE uid=:u AND status IN ('open','progress') AND due<>''", {"u": session["uid"]}):
+        d = (date.fromisoformat(t["due"]) - today()).days
+        if d < 0: out.append(f"Overdue by {-d} day(s): {t['title']}")
+        elif d <= 1: out.append(f"Due {'today' if d == 0 else 'tomorrow'}: {t['title']}")
+    return jsonify(out)
+
+@app.get("/api/profile")
+@need_login
+def profile():
+    u = q("SELECT name,username,email,gender,dob,created FROM ff_users WHERE id=:i", {"i": session["uid"]}, one=True); return jsonify(u)
+
+@app.patch("/api/profile")
+@need_login
+def edit_profile():
+    b = request.json or {}; q("UPDATE ff_users SET name=:n,gender=:g,dob=:d WHERE id=:i", {"n": (b.get("name") or session["name"]).strip(), "g": b.get("gender") or "", "d": b.get("dob") or "", "i": session["uid"]})
+    session["name"] = (b.get("name") or session["name"]).strip(); return jsonify(ok=True)
+
+@app.post("/api/password")
+@need_login
+def change_pw():
+    b = request.json or {}; u = q("SELECT pw FROM ff_users WHERE id=:i", {"i": session["uid"]}, one=True)
+    if not check_password_hash(u["pw"], b.get("current") or ""): return jsonify(error="Current password is wrong."), 401
+    if len(b.get("new") or "") < 8: return jsonify(error="New password must be 8+ characters."), 400
+    q("UPDATE ff_users SET pw=:p WHERE id=:i", {"p": generate_password_hash(b["new"]), "i": session["uid"]}); return jsonify(ok=True)
 
 if __name__ == "__main__": app.run(debug=True)

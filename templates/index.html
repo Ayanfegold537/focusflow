@@ -1,58 +1,90 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FocusFlow</title>
 <style>
-:root{--bg:#0d0f14;--s:#161a23;--b:#262b38;--t:#e8eaf0;--m:#8b90a6;--a:#f97316}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px system-ui,sans-serif}
-input,select,button{font:inherit;padding:10px;border-radius:8px;border:1px solid var(--b);background:var(--s);color:var(--t);margin:4px 0}
-button{background:var(--a);border:0;color:#fff;cursor:pointer}button.g{background:var(--s);border:1px solid var(--b)}
-.card{max-width:380px;margin:8vh auto;background:var(--s);padding:24px;border-radius:14px;border:1px solid var(--b)}.card input,.card button{width:100%}
-header{display:flex;gap:8px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--b);flex-wrap:wrap}header b{color:var(--a);margin-right:auto}
-main{max-width:760px;margin:18px auto;padding:0 14px}.box{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px;margin:10px 0}
-.err{color:#f43f5e}.m{color:var(--m);font-size:13px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sub{margin-left:26px}.done{text-decoration:line-through;color:var(--m)}
+:root{--bg:#06110e;--s:#0e201c;--s2:#12302a;--b:#1e4a40;--t:#e7f6f2;--m:#82a89f;--a:#14b8a6;--a2:#34d399;--w:#f59e0b;--r:#f43f5e;--g:linear-gradient(135deg,#0d9488,#34d399)}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#0b2a24,var(--bg) 55%);color:var(--t);font:14px system-ui,sans-serif;min-height:100vh}
+input,select,button{font:inherit;padding:10px 12px;border-radius:9px;border:1px solid var(--b);background:#0a1815;color:var(--t);margin:3px 0}input:focus,select:focus{outline:2px solid var(--a)}
+button{background:var(--g);border:0;color:#04201a;font-weight:600;cursor:pointer}button.g{background:var(--s2);color:var(--t);border:1px solid var(--b);font-weight:400}button.x{background:none;color:var(--r);border:1px solid var(--r);padding:4px 8px}
+.card{max-width:430px;margin:5vh auto;background:var(--s);padding:26px;border-radius:16px;border:1px solid var(--b);box-shadow:0 20px 60px #0008}.card input,.card select,.card button.go{width:100%}
+.logo{width:54px;height:54px;border-radius:50%;background:var(--g);display:grid;place-items:center;margin:0 auto 8px;font-size:24px;color:#04201a}.c{text-align:center}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pwr{display:flex;gap:6px}.pwr button{padding:0 12px}
+#app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}aside{background:var(--s);border-right:1px solid var(--b);padding:14px;display:flex;flex-direction:column;gap:2px}
+aside h3{margin:6px 4px 14px;color:var(--a2)}aside small{color:var(--m);margin:12px 6px 4px;font-size:11px;letter-spacing:1px}
+aside button{display:flex;justify-content:space-between;text-align:left;background:none;color:var(--t);font-weight:400;border-radius:9px;margin:0}aside button:hover,aside button.on{background:var(--s2);color:var(--a2)}
+.wel{background:var(--s2);border:1px solid var(--b);border-radius:12px;padding:10px;margin-bottom:6px}.wel span{color:var(--m);font-size:12px}
+.bar{display:flex;gap:10px;align-items:center;padding:12px 22px;border-bottom:1px solid var(--b)}.bar h2{margin:0;flex:1;font-size:17px}.bar input{width:240px;border-radius:20px}
+.bd{background:var(--r);color:#fff;border-radius:10px;padding:0 6px;font-size:11px;margin-left:6px}main{padding:20px 22px;max-width:980px}.box{background:var(--s);border:1px solid var(--b);border-radius:14px;padding:16px;margin:10px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.st{border-left:4px solid var(--a);background:var(--s);border-radius:12px;padding:14px}.st b{font-size:26px;display:block}.st span{color:var(--m)}
+.m{color:var(--m);font-size:12px}.err{color:var(--r)}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sub{margin-left:28px}.done{text-decoration:line-through;color:var(--m)}
+.pill{padding:2px 9px;border-radius:12px;font-size:11px;background:var(--s2);border:1px solid var(--b)}.pb{height:10px;background:var(--s2);border-radius:6px;overflow:hidden}.pb i{display:block;height:100%;background:var(--g)}
+.don{width:150px;height:150px;border-radius:50%}.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.cal div{min-height:62px;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:4px;font-size:11px}.cal .h{min-height:0;text-align:center;color:var(--m);border:0;background:none}
+.chip{display:block;background:var(--s2);border-radius:4px;margin-top:2px;padding:1px 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.mb{display:flex;gap:8px;align-items:flex-end;height:110px}.mb div{flex:1;background:var(--g);border-radius:5px 5px 0 0;text-align:center;font-size:11px;color:#04201a}
+@media(max-width:760px){#app{grid-template-columns:1fr}aside{flex-direction:row;flex-wrap:wrap}.wel,aside small{display:none}.bar input{width:120px}}
 </style></head><body>
-<div id="auth" class="card"><h2 id="at"></h2><p id="err" class="err"></p><p id="ok" class="m"></p>
-<input id="name" placeholder="Full name"><input id="email" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (8+ characters)">
-<button id="go" onclick="submitAuth()"></button><p class="m" id="links"></p></div>
-<div id="app" hidden><header><b>FocusFlow</b>
-<button class="g" onclick="view('tasks')">Tasks</button><button class="g" onclick="view('next')">Do next</button><button class="g" onclick="view('focus')">Focus</button><button class="g" onclick="view('ins')">Insights</button><button class="g" onclick="out()">Log out</button></header>
-<main id="v"></main></div>
+<div id="auth" class="card"><div class="logo">✔</div><h2 id="at" class="c"></h2><p id="err" class="err"></p><p id="ok" class="m"></p>
+<input data-m="signup" id="name" placeholder="Full name">
+<div class="two" data-m="signup"><select id="gender"><option value="">Select gender</option><option>Male</option><option>Female</option><option>Other</option></select><input id="dob" type="date"></div>
+<input data-m="signup" id="un" placeholder="Choose a username"><input data-m="login" id="ident" placeholder="Username or email"><input data-m="signup forgot" id="email" type="email" placeholder="Email address">
+<div class="pwr" data-m="login signup reset"><input id="pw" type="password" placeholder="Password (8+ characters)" style="flex:1"><button type="button" class="g" onclick="eye()">👁</button></div>
+<input data-m="signup reset" id="pw2" type="password" placeholder="Confirm password"><button class="go" id="go" onclick="submitAuth()"></button><p class="m c" id="links"></p></div>
+<div id="app" hidden><aside><h3>✔ FocusFlow</h3><div class="wel"><span>Welcome back</span><br><b id="who"></b></div>
+<small>MAIN</small><button onclick="go('dash')">Dashboard</button><button onclick="go('prog')">Task Progress</button><button onclick="go('ai')">AI Assistance</button><button onclick="go('add')">Add Task</button><button onclick="go('my')">My Tasks</button><button onclick="go('cal')">Calendar</button><button onclick="go('inbox')">Inbox<span class="bd" id="bd"></span></button>
+<small>TASK STATUS</small><button onclick="go('up')">Upcoming</button><button onclick="go('over')">Overdue</button><button onclick="go('all')">All Tasks</button>
+<small>UTILITIES</small><button onclick="go('next')">Do Next</button><button onclick="go('focus')">Focus Timer</button><button onclick="go('prof')">Settings / Profile</button><button onclick="out()" style="color:var(--r)">Logout</button></aside>
+<div><div class="bar"><h2 id="ttl"></h2><input id="q" placeholder="Search tasks..." oninput="go('my',1)"><button class="g" onclick="go('inbox')">🔔<span class="bd" id="bd2"></span></button><button class="g" onclick="go('prof')" id="ub"></button></div><main id="v"></main></div></div>
 <script>
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const api=async(p,m='GET',b)=>{const r=await fetch('/api/'+p,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Error');return d};
-let mode='login',token=new URLSearchParams(location.search).get('token'),timer=null;
-function setMode(m){mode=m;$('#err').textContent=$('#ok').textContent='';
- $('#at').textContent={login:'Log in',signup:'Create account',forgot:'Forgot password',reset:'Set new password'}[m];
- $('#go').textContent={login:'Log in',signup:'Sign up',forgot:'Get reset link',reset:'Save password'}[m];
- $('#name').hidden=m!='signup';$('#email').hidden=m=='reset';$('#pw').hidden=m=='forgot';
- $('#links').innerHTML=m=='login'?'<a href="#" onclick="setMode(\'signup\')">Create account</a> · <a href="#" onclick="setMode(\'forgot\')">Forgot password?</a>':'<a href="#" onclick="setMode(\'login\')">Back to log in</a>'}
-async function submitAuth(){try{const b={name:$('#name').value,email:$('#email').value,password:$('#pw').value};
+let mode='login',token=new URLSearchParams(location.search).get('token'),timer=null,T=[],calM=new Date(),ST={open:'Pending',progress:'In progress',done:'Completed',archived:'Archived'};
+const today=()=>new Date().toISOString().slice(0,10),eye=()=>{$('#pw').type=$('#pw').type=='password'?'text':'password'};
+function setMode(m){mode=m;$('#err').textContent=$('#ok').textContent='';$('#at').textContent={login:'Welcome back',signup:'Create account',forgot:'Forgot password',reset:'Set new password'}[m];
+ $('#go').textContent={login:'Sign In',signup:'Create Account',forgot:'Get reset link',reset:'Save password'}[m];document.querySelectorAll('[data-m]').forEach(e=>e.hidden=!e.dataset.m.split(' ').includes(m));
+ $('#links').innerHTML=m=='login'?'New here? <a href="#" onclick="setMode(\'signup\')">Create account</a> · <a href="#" onclick="setMode(\'forgot\')">Forgot password?</a>':'<a href="#" onclick="setMode(\'login\')">Back to sign in</a>'}
+async function submitAuth(){try{const b={name:$('#name').value,gender:$('#gender').value,dob:$('#dob').value,username:$('#un').value,email:mode=='login'?$('#ident').value:$('#email').value,password:$('#pw').value};
  if(mode=='forgot'){const d=await api('forgot','POST',b);$('#ok').innerHTML=d.link?'Reset link: <a href="'+esc(d.link)+'">open it</a>':'If the email exists, a link was created.';return}
- if(mode=='reset'){await api('reset','POST',{token,password:b.password});history.replaceState({},'','/');setMode('login');$('#ok').textContent='Password changed. Log in.';return}
+ if((mode=='signup'||mode=='reset')&&b.password!=$('#pw2').value)throw new Error('Passwords do not match.');
+ if(mode=='reset'){await api('reset','POST',{token,password:b.password});history.replaceState({},'','/');setMode('login');$('#ok').textContent='Password changed. Sign in.';return}
  await api(mode,'POST',b);start()}catch(e){$('#err').textContent=e.message}}
-async function start(){try{await api('me');$('#auth').hidden=true;$('#app').hidden=false;view('tasks')}catch{$('#auth').hidden=false;$('#app').hidden=true;setMode(token?'reset':'login')}}
+async function start(){try{const m=await api('me');$('#auth').hidden=true;$('#app').hidden=false;$('#who').textContent=$('#ub').textContent='👤 '+m.name;go('dash')}catch{$('#auth').hidden=false;$('#app').hidden=true;setMode(token?'reset':'login')}}
 async function out(){await api('logout','POST');start()}
-async function view(n){clearInterval(timer);$('#v').innerHTML='';await({tasks,next:nextV,focus:focusV,ins}[n])()}
-async function tasks(){const t=await api('tasks'),roots=t.filter(x=>!x.parent);
- $('#v').innerHTML=`<div class="box"><b>Add a task</b><div class="row"><input id="ti" placeholder="e.g. Write final year project report" style="flex:1"><input id="du" type="date"></div>
- <label class="m"><input type="checkbox" id="bd" checked style="margin-right:6px">Let the AI break this into steps</label><br><button onclick="add()">Add</button><p id="why" class="m"></p></div>`+
- roots.map(r=>`<div class="box"><div class="row"><input type="checkbox" ${r.status=='done'?'checked':''} onchange="tog('${r.id}',this.checked)">
- <span class="${r.status=='done'?'done':''}" style="flex:1">${esc(r.title)}</span><span class="m">${esc(r.category)} · ${esc(r.priority)} · ${r.minutes}m ${r.due?'· due '+esc(r.due):''}</span><button class="g" onclick="del('${r.id}')">✕</button></div>
- ${r.why?`<p class="m">Why this plan: ${esc(r.why)}</p>`:''}
- ${t.filter(s=>s.parent==r.id).map(s=>`<div class="row sub"><input type="checkbox" ${s.status=='done'?'checked':''} onchange="tog('${s.id}',this.checked)"><span class="${s.status=='done'?'done':''}">${esc(s.title)}</span><span class="m">${s.minutes}m · ${esc(s.due)}</span></div>`).join('')}</div>`).join('')||'<p class="m">No tasks yet.</p>'}
-async function add(){try{const d=await api('tasks','POST',{title:$('#ti').value,due:$('#du').value,breakdown:$('#bd').checked});await tasks();$('#why').textContent=d.why}catch(e){$('#why').textContent=e.message}}
-async function tog(id,c){await api('tasks/'+id,'PATCH',{status:c?'done':'open'});tasks()}
-async function del(id){if(confirm('Delete this task and its steps?')){await api('tasks/'+id,'DELETE');tasks()}}
-function nextV(){$('#v').innerHTML=`<div class="box"><b>What should I do now?</b><div class="row"><select id="en"><option value="low">Low energy</option><option value="medium" selected>Medium energy</option><option value="high">High energy</option></select>
- <input id="mi" type="number" placeholder="Minutes free"><button onclick="suggest()">Suggest</button></div><div id="res"></div></div>`}
-async function suggest(){const r=await api(`next?energy=${$('#en').value}&minutes=${$('#mi').value||0}`);
- $('#res').innerHTML=r.map(x=>`<div class="box"><b>${esc(x.title)}</b> <span class="m">${x.minutes}m · score ${x.score}</span><p class="m">${esc(x.reason)}</p></div>`).join('')||'<p class="m">No open tasks.</p>'}
-async function focusV(){const i=await api('insights'),t=(await api('tasks')).filter(x=>x.status=='open');let sec=i.suggested_session*60,run=0,el=0;
- $('#v').innerHTML=`<div class="box"><b>Adaptive focus timer</b><p class="m">Suggested length: ${i.suggested_session} min, based on your own past sessions.</p>
- <select id="ft">${t.map(x=>`<option value="${x.id}">${esc(x.title)}</option>`).join('')}</select><h1 id="clk">${i.suggested_session}:00</h1><button id="sb">Start</button></div>`;
- const draw=()=>$('#clk').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
- const fin=async()=>{clearInterval(timer);run=0;$('#sb').textContent='Start';const m=Math.round(el/60);if(m>0)await api('sessions','POST',{task_id:$('#ft').value,minutes:m});el=0;sec=i.suggested_session*60;draw()};
- $('#sb').onclick=()=>{if(run)return fin();run=1;$('#sb').textContent='Stop and log';timer=setInterval(()=>{sec--;el++;draw();if(sec<=0)fin()},1000)}}
-async function ins(){const i=await api('insights');$('#v').innerHTML=`<div class="box"><b>Your patterns</b><p>${esc(i.message)}</p></div>
- <div class="box">Tasks ${i.total} · Done ${i.done} (${i.rate}%) · Overdue ${i.overdue} · Focus ${i.focus} min</div>
- <div class="box m">Postponements by category: ${esc(JSON.stringify(i.postponed))}</div>`}
+const NAMES={dash:'Dashboard',prog:'Task Progress',ai:'AI Assistance',add:'Add Task',my:'My Tasks',cal:'Calendar',inbox:'Inbox',up:'Upcoming',over:'Overdue',all:'All Tasks',next:'Do Next',focus:'Focus Timer',prof:'Settings / Profile'};
+async function go(n,keep){clearInterval(timer);if(!keep||n!='my'||$('#ttl').textContent!='My Tasks')$('#ttl').textContent=NAMES[n];T=await api('tasks');
+ const ib=await api('inbox');$('#bd').textContent=$('#bd2').textContent=ib.length||'';await V[n](n,ib)}
+const act=t=>t.status=='open'||t.status=='progress',roots=()=>T.filter(t=>!t.parent);
+function row(r){const sub=T.filter(s=>s.parent==r.id);return `<div class="box"><div class="row"><input type="checkbox" ${r.status=='done'?'checked':''} onchange="setS('${r.id}',this.checked?'done':'open')">
+ <b class="${r.status=='done'?'done':''}" style="flex:1">${esc(r.title)}</b><span class="pill">${esc(r.category)}</span><span class="pill">${esc(r.priority)}</span><span class="m">${r.minutes}m ${r.due?'· due '+esc(r.due):''}</span>
+ <select onchange="setS('${r.id}',this.value)">${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${r.status==k?'selected':''}>${v}</option>`).join('')}</select><button class="x" onclick="del('${r.id}')">✕</button></div>
+ ${r.why?`<p class="m">Why this plan: ${esc(r.why)}</p>`:''}${sub.map(s=>`<div class="row sub"><input type="checkbox" ${s.status=='done'?'checked':''} onchange="setS('${s.id}',this.checked?'done':'open')"><span class="${s.status=='done'?'done':''}">${esc(s.title)}</span><span class="m">${s.minutes}m · ${esc(s.due)}</span></div>`).join('')}</div>`}
+const setS=async(id,s)=>{await api('tasks/'+id,'PATCH',{status:s});go(window.cur||'my',1)},del=async id=>{if(confirm('Delete this task and its steps?')){await api('tasks/'+id,'DELETE');go('my')}};
+const V={
+ dash(){const r=roots(),o=r.filter(t=>act(t)&&t.due&&t.due<today());$('#v').innerHTML=`<h3>Hello 👋</h3><div class="grid">${[['Total',r.length],['Completed',r.filter(t=>t.status=='done').length],['In progress',r.filter(t=>t.status=='progress').length],['Overdue',o.length]].map(([a,b])=>`<div class="st"><b>${b}</b><span>${a}</span></div>`).join('')}</div><div class="box"><b>Next deadlines</b>${r.filter(act).filter(t=>t.due).sort((a,b)=>a.due>b.due?1:-1).slice(0,5).map(t=>`<p>${esc(t.title)} <span class="m">· ${esc(t.due)}</span></p>`).join('')||'<p class="m">Nothing scheduled.</p>'}</div>`},
+ async prog(){const i=await api('insights'),r=roots(),c={Completed:i.done,Pending:r.filter(t=>t.status=='open').length,'In progress':i.progress,Archived:i.archived},col=['#34d399','#f59e0b','#14b8a6','#64748b'],tot=Object.values(c).reduce((a,b)=>a+b,0)||1;let acc=0;
+  const cg=Object.values(c).map((v,k)=>{const s=acc;acc+=v/tot*100;return `${col[k]} ${s}% ${acc}%`}).join(','),mo=Object.entries(i.monthly),mx=Math.max(1,...mo.map(x=>x[1]));
+  $('#v').innerHTML=`<div class="box"><div class="row"><b style="flex:1">Overall productivity</b><b style="color:var(--a2)">${i.rate}%</b></div><div class="pb"><i style="width:${i.rate}%"></i></div></div>
+  <div class="grid">${[['Completed',i.done],['In progress',i.progress],['Overdue',i.overdue],['Archived',i.archived],['Focus minutes',i.focus]].map(([a,b])=>`<div class="st"><b>${b}</b><span>${a}</span></div>`).join('')}</div>
+  <div class="grid"><div class="box"><b>Task status distribution</b><div class="row"><div class="don" style="background:conic-gradient(${cg})"></div><div>${Object.keys(c).map((k,j)=>`<p><span style="color:${col[j]}">●</span> ${k}: ${c[k]}</p>`).join('')}</div></div></div>
+  <div class="box"><b>Monthly completions</b><div class="mb">${mo.map(([k,v])=>`<div style="height:${v/mx*100}%">${v}<br>${k.slice(5)}</div>`).join('')||'<span class="m">No completed tasks yet.</span>'}</div></div></div><div class="box">${esc(i.message)}</div>`},
+ async ai(){const h=await api('analyses');$('#v').innerHTML=`<div class="box c"><span class="pill">✦ Rule-based AI planner</span><h2>AI Task Assistant</h2><p class="m">Enter a task and get steps, a time estimate, difficulty and likely challenges.</p>
+  <textarea id="at2" rows="3" style="width:80%;background:#0a1815;color:var(--t);border:1px solid var(--b);border-radius:9px;padding:10px" placeholder="e.g. Build a website for my final year project and present it"></textarea><br><button onclick="analyze()">✦ Analyze Task</button><p id="ae" class="err"></p><div id="ar"></div></div>
+  <div class="box"><div class="row"><b style="flex:1">Recent analyses</b><button class="g" onclick="clr('')">Clear history</button></div>${h.map(x=>`<div class="row" style="border-top:1px solid var(--b);padding:8px 0"><b style="flex:1">${esc(x.title)}</b><span class="pill">${x.difficulty}</span><span class="m">${Math.floor(x.minutes/60)}h ${x.minutes%60}m</span><button class="g" onclick='show(${JSON.stringify(x).replace(/'/g,"&#39;")})'>View</button><button onclick="mk('${esc(x.title).replace(/'/g,"")}')">+ Create</button><button class="x" onclick="clr('${x.id}')">🗑</button></div>`).join('')||'<p class="m">No analyses yet.</p>'}</div>`},
+ add(){$('#v').innerHTML=`<div class="box"><b>Add a task</b><div class="row"><input id="ti" placeholder="Task title" style="flex:1"><input id="du" type="date"><input id="mi" type="number" placeholder="Minutes" style="width:100px"></div><label class="m"><input type="checkbox" id="bd3" checked> Let the AI break this into steps</label><br><button onclick="addT()">Add task</button><p id="msg" class="m"></p></div>`},
+ my(){const s=($('#q').value||'').toLowerCase();$('#v').innerHTML=roots().filter(t=>t.status!='archived'&&(t.title.toLowerCase().includes(s))).map(row).join('')||'<p class="m">No tasks found.</p>'},
+ up(){$('#v').innerHTML=roots().filter(t=>act(t)&&t.due>=today()).sort((a,b)=>a.due>b.due?1:-1).map(row).join('')||'<p class="m">No upcoming tasks.</p>'},
+ over(){$('#v').innerHTML=roots().filter(t=>act(t)&&t.due&&t.due<today()).map(row).join('')||'<p class="m">No overdue tasks. 🎉</p>'},
+ all(){$('#v').innerHTML=roots().map(row).join('')||'<p class="m">No tasks yet.</p>'},
+ cal(){const y=calM.getFullYear(),m=calM.getMonth(),f=new Date(y,m,1).getDay(),n=new Date(y,m+1,0).getDate();let h='';for(let d=1;d<=n;d++){const k=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;h+=`<div><b>${d}</b>${T.filter(t=>t.due==k&&t.status!='archived').map(t=>`<span class="chip" title="${esc(t.title)}">${esc(t.title)}</span>`).join('')}</div>`}
+  $('#v').innerHTML=`<div class="row"><button class="g" onclick="calM.setMonth(calM.getMonth()-1);go('cal')">◀</button><b style="flex:1;text-align:center">${calM.toLocaleString('en',{month:'long',year:'numeric'})}</b><button class="g" onclick="calM.setMonth(calM.getMonth()+1);go('cal')">▶</button></div><div class="cal">${'SMTWTFS'.split('').map(d=>`<div class="h">${d}</div>`).join('')}${'<div style="opacity:0"></div>'.repeat(f)}${h}</div>`},
+ inbox(n,ib){$('#v').innerHTML=ib.map(x=>`<div class="box">🔔 ${esc(x)}</div>`).join('')||'<p class="m">Inbox is empty.</p>'},
+ async next(){$('#v').innerHTML=`<div class="box"><b>What should I do now?</b><div class="row"><select id="en"><option value="low">Low energy</option><option value="medium" selected>Medium energy</option><option value="high">High energy</option></select><input id="mi2" type="number" placeholder="Minutes free"><button onclick="sug()">Suggest</button></div><div id="res"></div></div>`},
+ async focus(){const i=await api('insights'),t=T.filter(act);let sec=i.suggested_session*60,run=0,el=0;$('#v').innerHTML=`<div class="box c"><b>Adaptive focus timer</b><p class="m">Suggested ${i.suggested_session} min, based on your own sessions.</p><select id="ft">${t.map(x=>`<option value="${x.id}">${esc(x.title)}</option>`).join('')}</select><h1 id="clk">${i.suggested_session}:00</h1><button id="sb">Start</button></div>`;
+  const draw=()=>$('#clk').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'),fin=async()=>{clearInterval(timer);run=0;$('#sb').textContent='Start';const m=Math.round(el/60);if(m>0)await api('sessions','POST',{task_id:$('#ft').value,minutes:m});el=0;sec=i.suggested_session*60;draw()};
+  $('#sb').onclick=()=>{if(run)return fin();run=1;$('#sb').textContent='Stop and log';timer=setInterval(()=>{sec--;el++;draw();if(sec<=0)fin()},1000)}},
+ async prof(){const p=await api('profile');$('#v').innerHTML=`<div class="box"><b>Profile</b><p class="m">@${esc(p.username)} · ${esc(p.email)}</p><div class="row"><input id="pn" value="${esc(p.name)}"><select id="pg"><option>${esc(p.gender)}</option><option>Male</option><option>Female</option><option>Other</option></select><input id="pd" type="date" value="${esc(p.dob)}"><button onclick="saveP()">Save</button></div></div>
+  <div class="box"><b>Change password</b><div class="row"><input id="cp" type="password" placeholder="Current"><input id="np" type="password" placeholder="New (8+)"><button onclick="chP()">Update</button></div><p id="pm" class="m"></p></div>`}};
+async function analyze(){try{$('#ae').textContent='';show(await api('analyze','POST',{title:$('#at2').value}));}catch(e){$('#ae').textContent=e.message}}
+function show(x){$('#ar').innerHTML=`<div class="box" style="text-align:left"><b>${esc(x.title)}</b> <span class="pill">${x.difficulty}</span> <span class="pill">${Math.floor(x.minutes/60)}h ${x.minutes%60}m</span><p class="m">${esc(x.why)}</p><b>Steps</b>${x.steps.map((s,i)=>`<p>${i+1}. ${esc(s.title)} <span class="m">· ${s.minutes}m</span></p>`).join('')}<b>Possible challenges</b>${x.challenges.map(c=>`<p>⚠ ${esc(c)}</p>`).join('')}</div>`}
+const mk=async t=>{await api('tasks','POST',{title:t,breakdown:true});go('my')},clr=async id=>{await api('analyses'+(id?'?id='+id:''),'DELETE');go('ai')};
+async function addT(){try{const d=await api('tasks','POST',{title:$('#ti').value,due:$('#du').value,minutes:$('#mi').value,breakdown:$('#bd3').checked});$('#msg').textContent='Added. '+(d.why||'');$('#ti').value=''}catch(e){$('#msg').textContent=e.message}}
+async function sug(){const r=await api(`next?energy=${$('#en').value}&minutes=${$('#mi2').value||0}`);$('#res').innerHTML=r.map(x=>`<div class="box"><b>${esc(x.title)}</b> <span class="m">${x.minutes}m · score ${x.score}</span><p class="m">${esc(x.reason)}</p></div>`).join('')||'<p class="m">No open tasks.</p>'}
+const saveP=async()=>{await api('profile','PATCH',{name:$('#pn').value,gender:$('#pg').value,dob:$('#pd').value});start()},chP=async()=>{try{await api('password','POST',{current:$('#cp').value,new:$('#np').value});$('#pm').textContent='Password updated.'}catch(e){$('#pm').textContent=e.message}};
 start();
 </script></body></html>
