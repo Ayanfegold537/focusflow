@@ -7,7 +7,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
-DB_URL = os.environ.get("DATABASE_URL", "").replace("postgres://", "postgresql://", 1)
+DB_URL = os.environ.get("DATABASE_URL", "")
+for _p in ("postgres://", "postgresql://"):   # force the psycopg2 driver that requirements.txt installs
+    if DB_URL.startswith(_p): DB_URL = "postgresql+psycopg2://" + DB_URL[len(_p):]
 
 # One query helper: SQLite locally, PostgreSQL (Supabase) when DATABASE_URL is set.
 # Every query uses :named parameters, so user input is never pasted into SQL.

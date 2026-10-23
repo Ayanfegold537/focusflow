@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FocusFlow</title>
+{% raw %}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FocusFlow</title>
 <style>
 :root{--bg:#06110e;--s:#0e201c;--s2:#12302a;--b:#1e4a40;--t:#e7f6f2;--m:#82a89f;--a:#14b8a6;--a2:#34d399;--w:#f59e0b;--r:#f43f5e;--g:linear-gradient(135deg,#0d9488,#34d399)}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#0b2a24,var(--bg) 55%);color:var(--t);font:14px system-ui,sans-serif;min-height:100vh}
@@ -87,4 +87,4 @@ async function addT(){try{const d=await api('tasks','POST',{title:$('#ti').value
 async function sug(){const r=await api(`next?energy=${$('#en').value}&minutes=${$('#mi2').value||0}`);$('#res').innerHTML=r.map(x=>`<div class="box"><b>${esc(x.title)}</b> <span class="m">${x.minutes}m · score ${x.score}</span><p class="m">${esc(x.reason)}</p></div>`).join('')||'<p class="m">No open tasks.</p>'}
 const saveP=async()=>{await api('profile','PATCH',{name:$('#pn').value,gender:$('#pg').value,dob:$('#pd').value});start()},chP=async()=>{try{await api('password','POST',{current:$('#cp').value,new:$('#np').value});$('#pm').textContent='Password updated.'}catch(e){$('#pm').textContent=e.message}};
 start();
-</script></body></html>
+</script></body></html>{% endraw %}
