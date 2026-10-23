@@ -1,466 +1,58 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FocusFlow — AI Productivity Manager</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body>
-
-<!-- ══ SIDEBAR ═══════════════════════════════════════════════════════════════ -->
-<aside class="sidebar" id="sidebar">
-  <div class="sidebar-brand">
-    <span class="brand-icon">◈</span>
-    <span class="brand-name">FocusFlow</span>
-  </div>
-
-  <nav class="sidebar-nav">
-    <button class="nav-item active" data-view="dashboard" onclick="showView('dashboard')">
-      <span class="nav-icon">⬡</span> Dashboard
-    </button>
-    <button class="nav-item" data-view="tasks" onclick="showView('tasks')">
-      <span class="nav-icon">◻</span> My Tasks
-      <span class="nav-badge" id="navBadgeTasks"></span>
-    </button>
-    <button class="nav-item" data-view="focus" onclick="showView('focus')">
-      <span class="nav-icon">◎</span> Focus Mode
-    </button>
-    <button class="nav-item" data-view="insights" onclick="showView('insights')">
-      <span class="nav-icon">◈</span> AI Insights
-    </button>
-    <button class="nav-item" data-view="profile" onclick="showView('profile')">
-      <span class="nav-icon">◉</span> My Profile
-    </button>
-    <button class="nav-item" data-view="chat" onclick="showView('chat')">
-      <span class="nav-icon">✦</span> AI Assistant
-    </button>
-  </nav>
-
-  <div class="sidebar-bottom">
-    <div class="streak-badge" id="streakBadge">
-      <span class="streak-fire">🔥</span>
-      <span id="streakCount">0</span> day streak
-    </div>
-    <div class="user-card" id="userCard">
-      <div class="user-avatar" id="userAvatar">?</div>
-      <div class="user-info">
-        <div class="user-name" id="userName">Loading…</div>
-        <div class="user-email" id="userEmail"></div>
-      </div>
-    </div>
-    <button class="btn-logout" onclick="logout()">⏻ Sign Out</button>
-  </div>
-</aside>
-
-<!-- ══ MAIN ═══════════════════════════════════════════════════════════════════ -->
-<main class="main-content">
-
-  <!-- TOP BAR -->
-  <header class="topbar">
-    <button class="hamburger" onclick="toggleSidebar()">☰</button>
-    <div class="topbar-left">
-      <h1 class="page-title" id="pageTitle">Dashboard</h1>
-      <span class="page-date" id="pageDate"></span>
-    </div>
-    <div class="topbar-right">
-      <button class="btn-add" onclick="openModal()">+ New Task</button>
-    </div>
-  </header>
-
-  <!-- OVERDUE ALERT BANNER -->
-  <div class="overdue-banner hidden" id="overdueBanner">
-    <span class="overdue-icon">⚠</span>
-    <span id="overdueText"></span>
-    <button onclick="filterTasks('pending', document.querySelector('.pill')); showView('tasks'); hideOverdueBanner()" class="overdue-btn">View Tasks →</button>
-    <button onclick="hideOverdueBanner()" class="overdue-close">✕</button>
-  </div>
-
-  <!-- ── DASHBOARD VIEW ─────────────────────────────────────────────────── -->
-  <section id="view-dashboard" class="view active">
-    <div class="greeting-bar" id="greetingBar">
-      <div>
-        <div class="greeting-text" id="greetingText">Good morning!</div>
-        <div class="greeting-sub" id="greetingSub">Here is your productivity overview.</div>
-      </div>
-    </div>
-
-    <div class="stats-row" id="statsRow">
-      <div class="stat-card" style="--accent:#f97316">
-        <div class="stat-label">Total Tasks</div>
-        <div class="stat-value" id="statTotal">0</div>
-        <div class="stat-sub">in your workspace</div>
-      </div>
-      <div class="stat-card" style="--accent:#22c55e">
-        <div class="stat-label">Completed</div>
-        <div class="stat-value" id="statDone">0</div>
-        <div class="stat-sub">tasks finished</div>
-      </div>
-      <div class="stat-card" style="--accent:#3b82f6">
-        <div class="stat-label">In Progress</div>
-        <div class="stat-value" id="statProgress">0</div>
-        <div class="stat-sub">currently active</div>
-      </div>
-      <div class="stat-card" style="--accent:#f43f5e">
-        <div class="stat-label">Overdue</div>
-        <div class="stat-value" id="statOverdue">0</div>
-        <div class="stat-sub">need attention</div>
-      </div>
-    </div>
-
-    <div class="dashboard-grid">
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Recent Tasks</h2>
-          <button class="text-btn" onclick="showView('tasks')">See all →</button>
-        </div>
-        <div id="recentTasks" class="task-mini-list"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-header">
-          <h2>AI Insight</h2>
-          <span class="ai-tag">AI Generated</span>
-        </div>
-        <div class="insight-box" id="insightBox">
-          <div class="insight-loading">Analysing your tasks…</div>
-        </div>
-        <div class="motivational" id="motivationalText"></div>
-      </div>
-    </div>
-
-    <div class="panel progress-panel">
-      <div class="panel-header">
-        <h2>Completion Rate</h2>
-        <span id="completionPct">0%</span>
-      </div>
-      <div class="progress-bar-wrap">
-        <div class="progress-bar-fill" id="progressBarFill" style="width:0%"></div>
-      </div>
-      <div class="category-breakdown" id="categoryBreakdown"></div>
-    </div>
-  </section>
-
-  <!-- ── TASKS VIEW ─────────────────────────────────────────────────────── -->
-  <section id="view-tasks" class="view">
-    <div class="filter-bar">
-      <div class="filter-pills">
-        <button class="pill active" onclick="filterTasks('all', this)">All</button>
-        <button class="pill" onclick="filterTasks('pending', this)">Pending</button>
-        <button class="pill" onclick="filterTasks('in_progress', this)">In Progress</button>
-        <button class="pill" onclick="filterTasks('done', this)">Done</button>
-      </div>
-      <div class="search-wrap">
-        <input type="text" id="searchInput" placeholder="Search tasks…" oninput="renderTasks()">
-      </div>
-    </div>
-    <div id="taskGrid" class="task-grid"></div>
-    <div id="emptyState" class="empty-state hidden">
-      <div class="empty-icon">◻</div>
-      <p id="emptyStateMsg">No tasks here yet. Hit <strong>+ New Task</strong> to start.</p>
-    </div>
-  </section>
-
-  <!-- ── FOCUS MODE VIEW ────────────────────────────────────────────────── -->
-  <section id="view-focus" class="view">
-    <div class="focus-container">
-      <div class="focus-left">
-        <h2 class="focus-heading">Pomodoro Focus Timer</h2>
-        <p class="focus-sub">Select a task, start the timer, and enter deep work mode.</p>
-
-        <div class="timer-ring-wrap">
-          <svg class="timer-ring" viewBox="0 0 200 200">
-            <circle cx="100" cy="100" r="88" fill="none" stroke="#1e293b" stroke-width="10"/>
-            <circle id="timerArc" cx="100" cy="100" r="88" fill="none" stroke="#f97316"
-                    stroke-width="10" stroke-linecap="round"
-                    stroke-dasharray="553" stroke-dashoffset="0"
-                    transform="rotate(-90 100 100)"/>
-          </svg>
-          <div class="timer-inner">
-            <div class="timer-display" id="timerDisplay">25:00</div>
-            <div class="timer-label" id="timerLabel">Ready</div>
-          </div>
-        </div>
-
-        <div class="timer-controls">
-          <button class="btn-timer" id="btnStart" onclick="startTimer()">▶ Start</button>
-          <button class="btn-timer secondary" onclick="resetTimer()">↺ Reset</button>
-        </div>
-
-        <div class="timer-options">
-          <button class="option-chip active" onclick="setMode(25,'Focus',this)">25 min Focus</button>
-          <button class="option-chip" onclick="setMode(5,'Short Break',this)">5 min Break</button>
-          <button class="option-chip" onclick="setMode(15,'Long Break',this)">15 min Break</button>
-        </div>
-      </div>
-
-      <div class="focus-right">
-        <h3>Choose a task to focus on</h3>
-        <div id="focusTaskList" class="focus-task-list"></div>
-        <div class="focus-stats">
-          <div class="focus-stat">
-            <span class="fs-num" id="focusTotal">0</span>
-            <span class="fs-label">Total Focus Mins</span>
-          </div>
-          <div class="focus-stat">
-            <span class="fs-num" id="focusSessions">0</span>
-            <span class="fs-label">Sessions Today</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── INSIGHTS VIEW ──────────────────────────────────────────────────── -->
-  <section id="view-insights" class="view">
-    <div class="insights-hero">
-      <div class="insights-hero-text">
-        <h2>AI Productivity Analysis</h2>
-        <p>Your task data is analysed in real time to surface patterns, blockers, and opportunities.</p>
-      </div>
-      <button class="btn-refresh" onclick="loadReport()">↻ Refresh</button>
-    </div>
-
-    <div class="insights-grid">
-      <div class="insight-card big" id="insightMain">
-        <div class="ic-label">Primary Insight</div>
-        <div class="ic-text" id="insightMainText">Loading analysis…</div>
-      </div>
-      <div class="insight-card" id="insightRate">
-        <div class="ic-label">Completion Rate</div>
-        <div class="ic-big" id="insightRateVal">—</div>
-      </div>
-      <div class="insight-card" id="insightStreak">
-        <div class="ic-label">Current Streak</div>
-        <div class="ic-big" id="insightStreakVal">—</div>
-      </div>
-      <div class="insight-card" id="insightFocus">
-        <div class="ic-label">Total Focus Time</div>
-        <div class="ic-big" id="insightFocusVal">—</div>
-      </div>
-      <div class="insight-card" id="insightTop">
-        <div class="ic-label">Top Category</div>
-        <div class="ic-big" id="insightTopVal">—</div>
-      </div>
-    </div>
-
-    <div class="panel mt-2">
-      <div class="panel-header"><h2>Priority Distribution</h2></div>
-      <div class="priority-bars" id="priorityBars"></div>
-    </div>
-  </section>
-
-  <!-- ── PROFILE VIEW ───────────────────────────────────────────────────── -->
-  <section id="view-profile" class="view">
-    <div class="profile-grid">
-      <div class="profile-card">
-        <div class="profile-avatar-big" id="profileAvatarBig">?</div>
-        <div class="profile-name-big" id="profileNameBig">Loading…</div>
-        <div class="profile-email-big" id="profileEmailBig"></div>
-        <div class="profile-joined" id="profileJoined"></div>
-      </div>
-
-      <div class="profile-right">
-        <div class="panel" style="margin-bottom:16px">
-          <div class="panel-header"><h2>Account Statistics</h2></div>
-          <div class="profile-stats-grid" id="profileStatsGrid">
-            <div class="pstat"><div class="pstat-val" id="pstatTotal">0</div><div class="pstat-label">Total Tasks</div></div>
-            <div class="pstat"><div class="pstat-val" id="pstatDone">0</div><div class="pstat-label">Completed</div></div>
-            <div class="pstat"><div class="pstat-val" id="pstatFocus">0</div><div class="pstat-label">Focus Mins</div></div>
-            <div class="pstat"><div class="pstat-val" id="pstatStreak">0</div><div class="pstat-label">Best Streak</div></div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header"><h2>Change Password</h2></div>
-          <div class="error-msg-inline hidden" id="pwError"></div>
-          <div class="success-msg-inline hidden" id="pwSuccess"></div>
-          <div class="form-group">
-            <label>Current Password</label>
-            <div class="pw-wrap">
-              <input type="password" id="currentPw" placeholder="Enter current password">
-              <button type="button" class="pw-toggle" onclick="togglePwField('currentPw',this)">👁</button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>New Password</label>
-            <div class="pw-wrap">
-              <input type="password" id="newPw" placeholder="At least 6 characters">
-              <button type="button" class="pw-toggle" onclick="togglePwField('newPw',this)">👁</button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Confirm New Password</label>
-            <div class="pw-wrap">
-              <input type="password" id="confirmPw" placeholder="Repeat new password">
-              <button type="button" class="pw-toggle" onclick="togglePwField('confirmPw',this)">👁</button>
-            </div>
-          </div>
-          <button class="btn-primary" onclick="changePassword()">Update Password</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── AI ASSISTANT VIEW ─────────────────────────────────────────────── -->
-  <section id="view-chat" class="view">
-    <div class="chat-container">
-      <div class="chat-header-info">
-        <div class="chat-avatar">✦</div>
-        <div>
-          <div class="chat-title">FocusFlow AI Assistant</div>
-          <div class="chat-subtitle">Ask me anything about productivity, your tasks, study tips, or anything else.</div>
-        </div>
-      </div>
-
-      <div class="chat-messages" id="chatMessages">
-        <div class="chat-msg ai">
-          <div class="chat-bubble">
-            👋 Hello! I'm your FocusFlow AI Assistant. I can help you with productivity advice, task planning, study strategies, time management, or answer any general questions you have. What's on your mind?
-          </div>
-          <div class="chat-time">AI Assistant</div>
-        </div>
-      </div>
-
-      <div class="chat-suggestions" id="chatSuggestions">
-        <button class="suggestion-chip" onclick="sendSuggestion('How can I be more productive today?')">How can I be more productive?</button>
-        <button class="suggestion-chip" onclick="sendSuggestion('Give me tips for managing deadlines effectively.')">Tips for deadlines</button>
-        <button class="suggestion-chip" onclick="sendSuggestion('Explain the Pomodoro technique to me.')">What is Pomodoro?</button>
-        <button class="suggestion-chip" onclick="sendSuggestion('How do I stay focused when studying?')">How to stay focused?</button>
-      </div>
-
-      <div class="chat-input-row">
-        <textarea id="chatInput" class="chat-input" placeholder="Ask me anything…"
-          rows="1" onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="chat-send-btn" id="chatSendBtn" onclick="sendChat()">
-          <span id="chatSendIcon">➤</span>
-        </button>
-      </div>
-    </div>
-  </section>
-
-</main>
-
-<!-- ══ ADD TASK MODAL ════════════════════════════════════════════════════════ -->
-<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
-  <div class="modal">
-    <div class="modal-header">
-      <h2>New Task</h2>
-      <button class="modal-close" onclick="closeModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label>Task Title *</label>
-        <input type="text" id="taskTitle" placeholder="e.g. Finish final year project report" oninput="liveAnalyze()">
-      </div>
-      <div class="form-group">
-        <label>Description</label>
-        <textarea id="taskDesc" rows="3" placeholder="Add details…" oninput="liveAnalyze()"></textarea>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Due Date</label>
-          <input type="date" id="taskDue">
-        </div>
-        <div class="form-group">
-          <label>Priority Override</label>
-          <select id="taskPriority">
-            <option value="">Auto (AI decides)</option>
-            <option value="critical">🔴 Critical</option>
-            <option value="high">🟠 High</option>
-            <option value="medium">🟡 Medium</option>
-            <option value="low">🟢 Low</option>
-          </select>
-        </div>
-      </div>
-      <div class="ai-preview" id="aiPreview">
-        <div class="ai-preview-header">
-          <span class="ai-tag">AI Analysis</span>
-          <span class="ai-preview-hint">Updates as you type</span>
-        </div>
-        <div class="ai-preview-body" id="aiPreviewBody">
-          <span class="muted">Start typing a task title to see AI suggestions…</span>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" onclick="submitTask()">Add Task</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ TASK DETAIL MODAL ═════════════════════════════════════════════════════ -->
-<div class="modal-overlay" id="detailOverlay" onclick="closeDetail(event)">
-  <div class="modal modal-wide">
-    <div class="modal-header">
-      <div>
-        <h2 id="detailTitle">Task Detail</h2>
-        <div class="detail-meta" id="detailMeta"></div>
-      </div>
-      <button class="modal-close" onclick="closeDetail()">✕</button>
-    </div>
-    <div class="modal-body" id="detailBody"></div>
-    <div class="modal-footer">
-      <button class="btn-danger" onclick="deleteCurrentTask()">Delete</button>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn-secondary" onclick="openEditModal()">✎ Edit</button>
-        <div class="status-btns" id="statusBtns"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ══ EDIT TASK MODAL ═══════════════════════════════════════════════════════ -->
-<div class="modal-overlay" id="editOverlay" onclick="closeEdit(event)">
-  <div class="modal">
-    <div class="modal-header">
-      <h2>Edit Task</h2>
-      <button class="modal-close" onclick="closeEdit()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label>Task Title *</label>
-        <input type="text" id="editTitle" placeholder="Task title">
-      </div>
-      <div class="form-group">
-        <label>Description</label>
-        <textarea id="editDesc" rows="3" placeholder="Add details…"></textarea>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Due Date</label>
-          <input type="date" id="editDue">
-        </div>
-        <div class="form-group">
-          <label>Priority</label>
-          <select id="editPriority">
-            <option value="critical">🔴 Critical</option>
-            <option value="high">🟠 High</option>
-            <option value="medium">🟡 Medium</option>
-            <option value="low">🟢 Low</option>
-          </select>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" onclick="closeEdit()">Cancel</button>
-      <button class="btn-primary" onclick="saveEdit()">Save Changes</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ COMPLETION CELEBRATION ════════════════════════════════════════════════ -->
-<div class="celebration hidden" id="celebration">
-  <div class="celebration-inner">
-    <div class="celebration-icon">🎉</div>
-    <div class="celebration-text">Task Complete!</div>
-    <div class="celebration-sub">Great work — keep the momentum going!</div>
-  </div>
-</div>
-
-<script src="/static/js/app.js"></script>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FocusFlow</title>
+<style>
+:root{--bg:#0d0f14;--s:#161a23;--b:#262b38;--t:#e8eaf0;--m:#8b90a6;--a:#f97316}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px system-ui,sans-serif}
+input,select,button{font:inherit;padding:10px;border-radius:8px;border:1px solid var(--b);background:var(--s);color:var(--t);margin:4px 0}
+button{background:var(--a);border:0;color:#fff;cursor:pointer}button.g{background:var(--s);border:1px solid var(--b)}
+.card{max-width:380px;margin:8vh auto;background:var(--s);padding:24px;border-radius:14px;border:1px solid var(--b)}.card input,.card button{width:100%}
+header{display:flex;gap:8px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--b);flex-wrap:wrap}header b{color:var(--a);margin-right:auto}
+main{max-width:760px;margin:18px auto;padding:0 14px}.box{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px;margin:10px 0}
+.err{color:#f43f5e}.m{color:var(--m);font-size:13px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sub{margin-left:26px}.done{text-decoration:line-through;color:var(--m)}
+</style></head><body>
+<div id="auth" class="card"><h2 id="at"></h2><p id="err" class="err"></p><p id="ok" class="m"></p>
+<input id="name" placeholder="Full name"><input id="email" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (8+ characters)">
+<button id="go" onclick="submitAuth()"></button><p class="m" id="links"></p></div>
+<div id="app" hidden><header><b>FocusFlow</b>
+<button class="g" onclick="view('tasks')">Tasks</button><button class="g" onclick="view('next')">Do next</button><button class="g" onclick="view('focus')">Focus</button><button class="g" onclick="view('ins')">Insights</button><button class="g" onclick="out()">Log out</button></header>
+<main id="v"></main></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const api=async(p,m='GET',b)=>{const r=await fetch('/api/'+p,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Error');return d};
+let mode='login',token=new URLSearchParams(location.search).get('token'),timer=null;
+function setMode(m){mode=m;$('#err').textContent=$('#ok').textContent='';
+ $('#at').textContent={login:'Log in',signup:'Create account',forgot:'Forgot password',reset:'Set new password'}[m];
+ $('#go').textContent={login:'Log in',signup:'Sign up',forgot:'Get reset link',reset:'Save password'}[m];
+ $('#name').hidden=m!='signup';$('#email').hidden=m=='reset';$('#pw').hidden=m=='forgot';
+ $('#links').innerHTML=m=='login'?'<a href="#" onclick="setMode(\'signup\')">Create account</a> · <a href="#" onclick="setMode(\'forgot\')">Forgot password?</a>':'<a href="#" onclick="setMode(\'login\')">Back to log in</a>'}
+async function submitAuth(){try{const b={name:$('#name').value,email:$('#email').value,password:$('#pw').value};
+ if(mode=='forgot'){const d=await api('forgot','POST',b);$('#ok').innerHTML=d.link?'Reset link: <a href="'+esc(d.link)+'">open it</a>':'If the email exists, a link was created.';return}
+ if(mode=='reset'){await api('reset','POST',{token,password:b.password});history.replaceState({},'','/');setMode('login');$('#ok').textContent='Password changed. Log in.';return}
+ await api(mode,'POST',b);start()}catch(e){$('#err').textContent=e.message}}
+async function start(){try{await api('me');$('#auth').hidden=true;$('#app').hidden=false;view('tasks')}catch{$('#auth').hidden=false;$('#app').hidden=true;setMode(token?'reset':'login')}}
+async function out(){await api('logout','POST');start()}
+async function view(n){clearInterval(timer);$('#v').innerHTML='';await({tasks,next:nextV,focus:focusV,ins}[n])()}
+async function tasks(){const t=await api('tasks'),roots=t.filter(x=>!x.parent);
+ $('#v').innerHTML=`<div class="box"><b>Add a task</b><div class="row"><input id="ti" placeholder="e.g. Write final year project report" style="flex:1"><input id="du" type="date"></div>
+ <label class="m"><input type="checkbox" id="bd" checked style="margin-right:6px">Let the AI break this into steps</label><br><button onclick="add()">Add</button><p id="why" class="m"></p></div>`+
+ roots.map(r=>`<div class="box"><div class="row"><input type="checkbox" ${r.status=='done'?'checked':''} onchange="tog('${r.id}',this.checked)">
+ <span class="${r.status=='done'?'done':''}" style="flex:1">${esc(r.title)}</span><span class="m">${esc(r.category)} · ${esc(r.priority)} · ${r.minutes}m ${r.due?'· due '+esc(r.due):''}</span><button class="g" onclick="del('${r.id}')">✕</button></div>
+ ${r.why?`<p class="m">Why this plan: ${esc(r.why)}</p>`:''}
+ ${t.filter(s=>s.parent==r.id).map(s=>`<div class="row sub"><input type="checkbox" ${s.status=='done'?'checked':''} onchange="tog('${s.id}',this.checked)"><span class="${s.status=='done'?'done':''}">${esc(s.title)}</span><span class="m">${s.minutes}m · ${esc(s.due)}</span></div>`).join('')}</div>`).join('')||'<p class="m">No tasks yet.</p>'}
+async function add(){try{const d=await api('tasks','POST',{title:$('#ti').value,due:$('#du').value,breakdown:$('#bd').checked});await tasks();$('#why').textContent=d.why}catch(e){$('#why').textContent=e.message}}
+async function tog(id,c){await api('tasks/'+id,'PATCH',{status:c?'done':'open'});tasks()}
+async function del(id){if(confirm('Delete this task and its steps?')){await api('tasks/'+id,'DELETE');tasks()}}
+function nextV(){$('#v').innerHTML=`<div class="box"><b>What should I do now?</b><div class="row"><select id="en"><option value="low">Low energy</option><option value="medium" selected>Medium energy</option><option value="high">High energy</option></select>
+ <input id="mi" type="number" placeholder="Minutes free"><button onclick="suggest()">Suggest</button></div><div id="res"></div></div>`}
+async function suggest(){const r=await api(`next?energy=${$('#en').value}&minutes=${$('#mi').value||0}`);
+ $('#res').innerHTML=r.map(x=>`<div class="box"><b>${esc(x.title)}</b> <span class="m">${x.minutes}m · score ${x.score}</span><p class="m">${esc(x.reason)}</p></div>`).join('')||'<p class="m">No open tasks.</p>'}
+async function focusV(){const i=await api('insights'),t=(await api('tasks')).filter(x=>x.status=='open');let sec=i.suggested_session*60,run=0,el=0;
+ $('#v').innerHTML=`<div class="box"><b>Adaptive focus timer</b><p class="m">Suggested length: ${i.suggested_session} min, based on your own past sessions.</p>
+ <select id="ft">${t.map(x=>`<option value="${x.id}">${esc(x.title)}</option>`).join('')}</select><h1 id="clk">${i.suggested_session}:00</h1><button id="sb">Start</button></div>`;
+ const draw=()=>$('#clk').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
+ const fin=async()=>{clearInterval(timer);run=0;$('#sb').textContent='Start';const m=Math.round(el/60);if(m>0)await api('sessions','POST',{task_id:$('#ft').value,minutes:m});el=0;sec=i.suggested_session*60;draw()};
+ $('#sb').onclick=()=>{if(run)return fin();run=1;$('#sb').textContent='Stop and log';timer=setInterval(()=>{sec--;el++;draw();if(sec<=0)fin()},1000)}}
+async function ins(){const i=await api('insights');$('#v').innerHTML=`<div class="box"><b>Your patterns</b><p>${esc(i.message)}</p></div>
+ <div class="box">Tasks ${i.total} · Done ${i.done} (${i.rate}%) · Overdue ${i.overdue} · Focus ${i.focus} min</div>
+ <div class="box m">Postponements by category: ${esc(JSON.stringify(i.postponed))}</div>`}
+start();
+</script></body></html>
