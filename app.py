@@ -316,4 +316,32 @@ def change_pw():
     if len(b.get("new") or "") < 8: return jsonify(error="New password must be 8+ characters."), 400
     q("UPDATE ff_users SET pw=:p WHERE id=:i", {"p": generate_password_hash(b["new"]), "i": session["uid"]}); return jsonify(ok=True)
 
+# ---------- General AI Chat (any topic) ----------
+KB = [(("focus", "concentrat", "distract"), "Work in 25-minute focus blocks, silence your phone and do one thing at a time. The Focus Timer in this app can help."),
+ (("pomodoro",), "Pomodoro: work 25 minutes, rest 5, and after four rounds rest 15. Open Focus Timer to start one."),
+ (("procrastinat", "motivat", "stuck"), "Start with just 5 minutes on the smallest step. Momentum usually follows."),
+ (("study", "exam", "revis"), "Use active recall and past questions, review after 1 day, 3 days and 1 week, and study in 25-minute blocks."),
+ (("stress", "overwhelm", "anxious"), "Write everything down, pick the single most important item, and take a 5-minute break first.")]
+KB_DEFAULT = "I can only answer a few productivity topics right now (focus, pomodoro, motivation, study, stress). Connect the Groq key to chat about anything."
+
+@app.post("/api/chat")
+@need_login
+def chat():
+    msgs = [{"role": m["role"], "content": str(m["content"])[:2000]} for m in ((request.json or {}).get("messages") or [])[-12:]
+            if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content")]
+    if not msgs or msgs[-1]["role"] != "user": return jsonify(error="Type a message first."), 400
+    key = os.environ.get("GROQ_API_KEY", "").strip()
+    if key:
+        tasks = ", ".join(t["title"] for t in q("SELECT title FROM ff_tasks WHERE uid=:u AND parent IS NULL AND status IN ('open','progress') LIMIT 5", {"u": session["uid"]})) or "none"
+        sysmsg = ("You are FocusFlow Assistant inside a productivity app. Help with anything the user asks: questions, explanations, writing and editing, study help, planning, coding, ideas, summaries and advice. "
+                  f"Be accurate, friendly and concise, and say so if you are unsure. The user is {session['name']}. Their open tasks: {tasks}.")
+        req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps({"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"), "temperature": 0.6, "max_tokens": 900, "messages": [{"role": "system", "content": sysmsg}] + msgs}).encode(),
+            headers={"Content-Type": "application/json", "Authorization": "Bearer " + key, "User-Agent": "FocusFlow/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=25) as r: return jsonify(reply=json.loads(r.read())["choices"][0]["message"]["content"], source="Groq AI")
+        except Exception as e: app.logger.warning("Groq chat failed: %s", e)
+    last = msgs[-1]["content"].lower()
+    return jsonify(reply=next((a for k, a in KB if any(w in last for w in k)), KB_DEFAULT), source="Offline helper")
+
 if __name__ == "__main__": app.run(debug=True)
