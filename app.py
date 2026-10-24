@@ -88,22 +88,33 @@ def make_plan(title, due):
            f"; complexity {cx}/3 gives about {total} minutes, " + (f"spread backwards over {days} day(s) before the deadline." if due else "planned over a default 7-day window (add a due date to schedule it)."))
     return kind, prio, total, steps, why
 
+def groq_chat(messages, **kw):
+    """Call Groq, trying a second model if the first is unavailable. Returns (text, error)."""
+    key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not key: return None, "No GROQ_API_KEY is set on the server."
+    err = ""
+    for model in dict.fromkeys([os.environ.get("GROQ_MODEL", "").strip() or "llama-3.3-70b-versatile", "llama-3.1-8b-instant"]):
+        req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=json.dumps(dict(model=model, messages=messages, **kw)).encode(),
+                                     headers={"Content-Type": "application/json", "Authorization": "Bearer " + key, "User-Agent": "FocusFlow/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=25) as r: return json.loads(r.read())["choices"][0]["message"]["content"], ""
+        except urllib.error.HTTPError as e:
+            err = f"Groq error {e.code}: " + e.read().decode()[:160]
+            if e.code in (401, 403): break      # bad key: another model will not help
+        except Exception as e:
+            err = f"Could not reach Groq: {e}"; break
+    app.logger.warning(err); return None, err
+
 SYS = ("You are a task-planning assistant inside a productivity app. Reply with JSON only: "
  '{"is_task":true,"message":"if not a task: one kind sentence suggesting how to rephrase it as an action","category":"writing|coding|exam|event|fitness|money|home|shopping|personal|general",'
  '"difficulty":"Easy|Medium|Hard","steps":[{"title":"short action","minutes":30}],"challenges":["three realistic obstacles"],"tip":"one practical tip"}. '
  "Use 4 to 7 concrete steps in a sensible order. If the input is a question or not an actionable task, set is_task to false.")
 
 def groq_plan(title, due):
-    key = os.environ.get("GROQ_API_KEY", "").strip()
-    if not key: return None
-    model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-    req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions",
-        data=json.dumps({"model": model, "temperature": 0.3, "response_format": {"type": "json_object"},
-                         "messages": [{"role": "system", "content": SYS}, {"role": "user", "content": title}]}).encode(),
-        headers={"Content-Type": "application/json", "Authorization": "Bearer " + key, "User-Agent": "FocusFlow/1.0"})
+    txt, err = groq_chat([{"role": "system", "content": SYS}, {"role": "user", "content": title}], temperature=0.3, response_format={"type": "json_object"})
+    if not txt: return None
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
-            d = json.loads(json.loads(r.read())["choices"][0]["message"]["content"])
+        d = json.loads(txt)
         if not d.get("is_task", True): return {"is_task": False, "message": str(d.get("message") or "Try describing an action you can complete.")}
         steps = [{"title": str(x["title"])[:90], "minutes": max(5, min(600, int(x.get("minutes") or 30)))} for x in d["steps"] if isinstance(x, dict) and x.get("title")][:7]
         if len(steps) < 3: return None
@@ -113,7 +124,7 @@ def groq_plan(title, due):
         diff = d.get("difficulty") if d.get("difficulty") in ("Easy", "Medium", "Hard") else "Medium"
         return {"is_task": True, "kind": str(d.get("category") or "general")[:20], "difficulty": diff, "minutes": total, "steps": steps,
                 "challenges": [str(c)[:90] for c in (d.get("challenges") or [])][:4] or CHALLENGES["general"],
-                "why": f"Planned by Groq AI ({model}). " + str(d.get("tip") or ""), "source": "Groq AI"}
+                "why": "Planned by Groq AI. " + str(d.get("tip") or ""), "source": "Groq AI"}
     except Exception as e:
         app.logger.warning("Groq failed, using rule-based planner: %s", e); return None
 
@@ -330,18 +341,12 @@ def chat():
     msgs = [{"role": m["role"], "content": str(m["content"])[:2000]} for m in ((request.json or {}).get("messages") or [])[-12:]
             if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content")]
     if not msgs or msgs[-1]["role"] != "user": return jsonify(error="Type a message first."), 400
-    key = os.environ.get("GROQ_API_KEY", "").strip()
-    if key:
-        tasks = ", ".join(t["title"] for t in q("SELECT title FROM ff_tasks WHERE uid=:u AND parent IS NULL AND status IN ('open','progress') LIMIT 5", {"u": session["uid"]})) or "none"
-        sysmsg = ("You are FocusFlow Assistant inside a productivity app. Help with anything the user asks: questions, explanations, writing and editing, study help, planning, coding, ideas, summaries and advice. "
-                  f"Be accurate, friendly and concise, and say so if you are unsure. The user is {session['name']}. Their open tasks: {tasks}.")
-        req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions",
-            data=json.dumps({"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"), "temperature": 0.6, "max_tokens": 900, "messages": [{"role": "system", "content": sysmsg}] + msgs}).encode(),
-            headers={"Content-Type": "application/json", "Authorization": "Bearer " + key, "User-Agent": "FocusFlow/1.0"})
-        try:
-            with urllib.request.urlopen(req, timeout=25) as r: return jsonify(reply=json.loads(r.read())["choices"][0]["message"]["content"], source="Groq AI")
-        except Exception as e: app.logger.warning("Groq chat failed: %s", e)
+    tasks = ", ".join(t["title"] for t in q("SELECT title FROM ff_tasks WHERE uid=:u AND parent IS NULL AND status IN ('open','progress') LIMIT 5", {"u": session["uid"]})) or "none"
+    sysmsg = ("You are FocusFlow Assistant inside a productivity app. Help with anything the user asks: questions, explanations, writing and editing, study help, planning, coding, ideas, summaries and advice. "
+              f"Be accurate, friendly and concise, and say so if you are unsure. The user is {session['name']}. Their open tasks: {tasks}.")
+    txt, err = groq_chat([{"role": "system", "content": sysmsg}] + msgs, temperature=0.6, max_tokens=900)
+    if txt: return jsonify(reply=txt, source="Groq AI")
     last = msgs[-1]["content"].lower()
-    return jsonify(reply=next((a for k, a in KB if any(w in last for w in k)), KB_DEFAULT), source="Offline helper")
+    return jsonify(reply=next((a for k, a in KB if any(w in last for w in k)), KB_DEFAULT), source="Offline helper", note=err)
 
 if __name__ == "__main__": app.run(debug=True)
